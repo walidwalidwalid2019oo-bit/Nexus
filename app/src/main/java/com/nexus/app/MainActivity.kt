@@ -206,7 +206,7 @@ private fun HomePage(active: String, onChoose: (String) -> Unit, onSecret: () ->
         Triple("NEXUS AI", "General assistant", "Everyday questions and ideas"),
         Triple("CREATIVE AI", "Creative studio", "Music, images, stories and games")
     ).forEach { item ->
-        Card(onClick = { choose(item.first) }, modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp),
+        Card(onClick = { onChoose(item.first) }, modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp),
             shape = RoundedCornerShape(17.dp),
             colors = CardDefaults.cardColors(containerColor = if (active == item.first) DeepPurple else Panel),
             border = if (active == item.first) BorderStroke(1.dp, Purple) else null) {
