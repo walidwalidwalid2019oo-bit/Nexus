@@ -21,6 +21,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -240,6 +242,9 @@ fun NexusApp() {
 
 @Composable
 private fun HomePage(active: String, onChoose: (String) -> Unit, onSecret: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+    ) {
     Text("Choose your intelligence.", color = MainText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
     Text("Four modes. One home.", color = Muted, fontSize = 12.sp)
     Spacer(Modifier.height(13.dp))
@@ -279,6 +284,7 @@ private fun HomePage(active: String, onChoose: (String) -> Unit, onSecret: () ->
             Text("Mystery tools and creative experiments.",color=Muted,fontSize=11.sp)
             Button(onClick=onSecret,colors=ButtonDefaults.buttonColors(containerColor=Purple)){Text("ENTER WITH SECRET KEY")}
         }
+    }
     }
 }
 
