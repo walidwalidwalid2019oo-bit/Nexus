@@ -1,6 +1,12 @@
 package com.nexus.app
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +16,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -61,6 +69,10 @@ private val aiModes = listOf("TITAN","VOID","NEXUS AI","CREATIVE AI")
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel("nexus_updates", "NEXUS updates", NotificationManager.IMPORTANCE_DEFAULT)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
         setContent { NexusApp() }
     }
 }
@@ -68,6 +80,37 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NexusApp() {
     val context = LocalContext.current
+    var notificationGranted by remember {
+        mutableStateOf(Build.VERSION.SDK_INT < 33 ||
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+    }
+    var notificationStatus by remember { mutableStateOf("") }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationGranted = granted
+        notificationStatus = if (granted) "Notifications are enabled." else "Permission not granted. You can change it in Android Settings."
+    }
+    val requestNotifications = {
+        if (Build.VERSION.SDK_INT >= 33) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else { notificationGranted = true; notificationStatus = "Notifications are enabled on this Android version." }
+    }
+    val sendTestNotification = {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationGranted = false
+            notificationStatus = "Grant notification permission first."
+        } else {
+            val notification = Notification.Builder(context, "nexus_updates")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("NEXUS is online")
+                .setContentText("Your notification system is working.")
+                .setAutoCancel(true)
+                .build()
+            context.getSystemService(NotificationManager::class.java).notify(1001, notification)
+            notificationStatus = "Test notification sent."
+        }
+    }
     val prefs = remember { context.getSharedPreferences("nexus_data", Context.MODE_PRIVATE) }
     var page by remember { mutableStateOf("Home") }
     var mode by remember { mutableStateOf(prefs.getString("selected_ai", "NEXUS AI") ?: "NEXUS AI") }
@@ -168,7 +211,7 @@ fun NexusApp() {
                             settingsStatus=try { writeSecret(context,apiKey.trim()); "Connection saved securely." }
                             catch (_:Exception) { "Could not securely save the key." }
                         }, themeName, { themeName=it; applyTheme(it); prefs.edit().putString("theme",it).apply() },
-                        { vaultUnlocked=false })
+                        { vaultUnlocked=false }, notificationGranted, requestNotifications, sendTestNotification, notificationStatus)
                     "VOID LAB" -> if (vaultUnlocked) VoidLabPage() else { page="Home" }
                     else -> { page="Home" }
                 }
@@ -333,7 +376,8 @@ private fun MemoryPage(mode: String, memory: String, onMemory: (String) -> Unit,
 
 @Composable
 private fun SettingsPage(endpoint:String,onEndpoint:(String)->Unit,models:Map<String,String>,onModel:(String,String)->Unit,
- key:String,onKey:(String)->Unit,status:String,save:()->Unit,themeName:String,onTheme:(String)->Unit,lockVault:()->Unit){
+ key:String,onKey:(String)->Unit,status:String,save:()->Unit,themeName:String,onTheme:(String)->Unit,lockVault:()->Unit,
+ notificationsGranted:Boolean,requestNotifications:()->Unit,sendTestNotification:()->Unit,notificationStatus:String){
  var themeMenu by remember{mutableStateOf(false)}
  var modeMenu by remember{mutableStateOf(false)}
  var editMode by remember{mutableStateOf("NEXUS AI")}
@@ -362,6 +406,16 @@ private fun SettingsPage(endpoint:String,onEndpoint:(String)->Unit,models:Map<St
    OutlinedTextField(key,onKey,modifier=Modifier.fillMaxWidth(),label={Text("API key")},singleLine=true,visualTransformation=PasswordVisualTransformation(),colors=fieldColors())
    Button(onClick=save,colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("SAVE CONNECTION")}
    if(status.isNotBlank())Text(status,color=Purple,fontSize=10.sp)
+  }}
+  item{SettingsCard("PERMISSIONS & NOTIFICATIONS"){
+   Text("NEXUS only asks for permissions when a feature needs them. Notifications are used for app updates and alerts.",color=Muted,fontSize=11.sp)
+   Text(if(notificationsGranted) "Notification permission: GRANTED" else "Notification permission: NOT GRANTED",color=if(notificationsGranted) Purple else Muted,fontSize=11.sp,fontWeight=FontWeight.SemiBold)
+   Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+    OutlinedButton(onClick=requestNotifications){Text(if(notificationsGranted) "CHECK PERMISSION" else "ALLOW NOTIFICATIONS",color=Purple)}
+    Button(onClick=sendTestNotification,enabled=notificationsGranted,colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("TEST")}
+   }
+   if(notificationStatus.isNotBlank()) Text(notificationStatus,color=Muted,fontSize=10.sp)
+   Text("Camera, microphone and location are not requested because the current app features do not need them.",color=Muted,fontSize=10.sp)
   }}
   item{SettingsCard("PRIVACY & SECURITY"){
    Text("API keys are encrypted with Android Keystore. Chats, memories and notes are stored locally. Messages sent to an AI provider leave your phone and follow that provider's policies. Never share your API key.",color=Muted,fontSize=11.sp)
