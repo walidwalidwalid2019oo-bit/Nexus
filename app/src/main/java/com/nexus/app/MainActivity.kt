@@ -212,7 +212,7 @@ fun NexusApp() {
                             catch (_:Exception) { "Could not securely save the key." }
                         }, themeName, { themeName=it; applyTheme(it); prefs.edit().putString("theme",it).apply() },
                         { vaultUnlocked=false }, notificationGranted, requestNotifications, sendTestNotification, notificationStatus)
-                    "VOID LAB" -> if (vaultUnlocked) VoidLabPage() else { page="Home" }
+                    "VOID LAB" -> if (vaultUnlocked) VoidLabPage(endpoint, models["CREATIVE AI"] ?: "", apiKey) else { page="Home" }
                     else -> { page="Home" }
                 }
             }
@@ -431,7 +431,7 @@ private fun SettingsCard(title:String,content:@Composable ColumnScope.()->Unit){
  }
 }
 @Composable
-private fun VoidLabPage(){
+private fun VoidLabPage(endpoint: String, modelId: String, apiKey: String){
  var storyNo by remember{mutableIntStateOf(0)}
  var story by remember{mutableStateOf(mysteryStory(0))}
  var script by remember{mutableStateOf("The signal came from a room that does not exist.")}
@@ -473,6 +473,44 @@ private fun VoidLabPage(){
    Text(idea,color=MainText,fontSize=14.sp,fontWeight=FontWeight.Medium)
    Button(onClick={idea=ideaPrompt()},colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("ROLL A NEW IDEA")}
   }}
+  item{
+   var topic by remember{mutableStateOf("A digital world that slowly forgets its creator")}
+   var vibe by remember{mutableStateOf("Dark dreamy indie pop")}
+   var lyrics by remember{mutableStateOf("")}
+   var working by remember{mutableStateOf(false)}
+   var songStatus by remember{mutableStateOf("Use your CREATIVE AI model from Settings to write original lyrics.")}
+   SettingsCard("04 / SONG MAKER"){
+    Text("Build an original song idea and lyrics. Choose a theme and sound.",color=Muted,fontSize=11.sp)
+    OutlinedTextField(topic,{topic=it},modifier=Modifier.fillMaxWidth(),label={Text("Song theme")},minLines=2,colors=fieldColors())
+    OutlinedTextField(vibe,{vibe=it},modifier=Modifier.fillMaxWidth(),label={Text("Sound / mood")},singleLine=true,colors=fieldColors())
+    Button(onClick={
+     if(topic.isBlank()) songStatus="Add a song theme first."
+     else if(apiKey.isBlank() || modelId.isBlank()) songStatus="Add an API key and CREATIVE AI model in Settings to generate lyrics."
+     else{
+      working=true;songStatus="CREATIVE AI is writing..."
+      val prompt="Write completely original song lyrics based on this theme: "+topic+". Sound and mood: "+vibe+". Create a title, Verse 1, Pre-Chorus, Chorus, Verse 2, Bridge and Final Chorus. Make it vivid and singable. Do not imitate any existing artist or song. Return only the song draft."
+      Thread{
+       val result=askProvider(endpoint,modelId,apiKey,"CREATIVE AI",listOf(ChatMessage("user",prompt)))
+       Handler(Looper.getMainLooper()).post{lyrics=result.first ?: "";songStatus=result.second ?: "Song draft created.";working=false}
+      }.start()
+     }
+    },modifier=Modifier.fillMaxWidth(),enabled=!working,colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text(if(working)"WRITING..." else "CREATE SONG")}
+    Text(songStatus,color=Muted,fontSize=10.sp)
+    if(lyrics.isNotBlank()){
+     Card(colors=CardDefaults.cardColors(containerColor=Night),shape=RoundedCornerShape(12.dp)){
+      Column(Modifier.padding(12.dp)){
+       Text(lyrics,color=MainText,fontSize=12.sp,lineHeight=18.sp)
+       TextButton(onClick={
+        val clip=android.content.ClipData.newPlainText("NEXUS song draft",lyrics)
+        (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(clip)
+        songStatus="Lyrics copied to clipboard."
+       }){Text("COPY LYRICS",color=Purple)}
+      }
+     }
+    }
+    Text("Creates lyrics, not a finished audio recording.",color=Muted,fontSize=9.sp)
+   }
+  }
  }
 }
 private fun mysteryStory(n:Int):String{
