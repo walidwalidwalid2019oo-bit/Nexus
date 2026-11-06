@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -37,13 +39,24 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-private val Night = Color(0xFF08070B)
-private val Panel = Color(0xFF15111B)
-private val Purple = Color(0xFF7040A0)
-private val DeepPurple = Color(0xFF301044)
-private val MainText = Color(0xFFEAE5EF)
-private val Muted = Color(0xFF9B8AA8)
+private var Night = Color(0xFF08070B)
+private var Panel = Color(0xFF15111B)
+private var Purple = Color(0xFF7040A0)
+private var DeepPurple = Color(0xFF301044)
+private var MainText = Color(0xFFEAE5EF)
+private var Muted = Color(0xFF9B8AA8)
 data class ChatMessage(val role: String, val content: String)
+
+private fun applyTheme(name: String) {
+ when(name) {
+ "Midnight Blue" -> { Night=Color(0xFF070B12); Panel=Color(0xFF111A29); Purple=Color(0xFF5794D6); DeepPurple=Color(0xFF142D50); MainText=Color(0xFFE6EFFB); Muted=Color(0xFF91A5BF) }
+ "Emerald" -> { Night=Color(0xFF070D0B); Panel=Color(0xFF12201A); Purple=Color(0xFF59B88B); DeepPurple=Color(0xFF123D2B); MainText=Color(0xFFE4F3EA); Muted=Color(0xFF91B5A0) }
+ "Crimson" -> { Night=Color(0xFF100809); Panel=Color(0xFF241316); Purple=Color(0xFFD06A79); DeepPurple=Color(0xFF4A1824); MainText=Color(0xFFF6E8EA); Muted=Color(0xFFC0A0A5) }
+ "Soft Light" -> { Night=Color(0xFFF1EDF5); Panel=Color(0xFFFFFFFF); Purple=Color(0xFF7040A0); DeepPurple=Color(0xFF5B3479); MainText=Color(0xFF21182A); Muted=Color(0xFF71677A) }
+ else -> { Night=Color(0xFF08070B); Panel=Color(0xFF15111B); Purple=Color(0xFF9A63C7); DeepPurple=Color(0xFF301044); MainText=Color(0xFFEAE5EF); Muted=Color(0xFF9B8AA8) }
+ }
+}
+private val aiModes = listOf("TITAN","VOID","NEXUS AI","CREATIVE AI")
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +71,13 @@ fun NexusApp() {
     val prefs = remember { context.getSharedPreferences("nexus_data", Context.MODE_PRIVATE) }
     var page by remember { mutableStateOf("Home") }
     var mode by remember { mutableStateOf(prefs.getString("selected_ai", "NEXUS AI") ?: "NEXUS AI") }
+    var themeName by remember { mutableStateOf(prefs.getString("theme","Obsidian Purple") ?: "Obsidian Purple") }
+    applyTheme(themeName)
+    var models by remember { mutableStateOf(aiModes.associateWith { prefs.getString("model_"+it,"openai/gpt-oss-120b") ?: "" }) }
+    var showUnlock by remember { mutableStateOf(false) }
+    var unlockInput by remember { mutableStateOf("") }
+    var unlockError by remember { mutableStateOf(false) }
+    var vaultUnlocked by remember { mutableStateOf(false) }
     var notes by remember { mutableStateOf(loadNotes(prefs)) }
     var noteInput by remember { mutableStateOf("") }
     var memory by remember(mode) { mutableStateOf(prefs.getString("memory_" + mode, "") ?: "") }
@@ -92,11 +112,9 @@ fun NexusApp() {
                 Text("YOUR DIGITAL SPACE  /  " + mode, color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
                 Spacer(Modifier.height(14.dp))
                 when (page) {
-                    "Home" -> HomePage(mode) {
-                        mode = it
-                        prefs.edit().putString("selected_ai", it).apply()
-                        page = "Chat"
-                    }
+                    "Home" -> HomePage(mode, onChoose = {
+                        mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
+                    }, onSecret = { showUnlock=true })
                     "Chat" -> ChatPage(mode, chats, chatInput, { chatInput = it }, sending, chatError, {
                         val prompt = chatInput.trim()
                         if (prompt.isNotEmpty() && !sending) {
@@ -109,7 +127,7 @@ fun NexusApp() {
                                 chatError = ""
                                 sending = true
                                 Thread {
-                                    val result = askProvider(endpoint, model, apiKey, mode, history)
+                                    val result = askProvider(endpoint, models[mode] ?: "", apiKey, mode, history)
                                     Handler(Looper.getMainLooper()).post {
                                         if (result.first != null) {
                                             chats = chats + ChatMessage("assistant", result.first!!)
@@ -143,21 +161,42 @@ fun NexusApp() {
                         prefs.edit().putString("memory_" + mode, memory).apply()
                         memorySaved = true
                     }, memorySaved)
-                    else -> SettingsPage(endpoint, { endpoint = it }, model, { model = it }, apiKey, { apiKey = it }, settingsStatus, {
-                        prefs.edit().putString("api_endpoint", endpoint.trim()).putString("api_model", model.trim()).apply()
-                        settingsStatus = try {
-                            writeSecret(context, apiKey.trim())
-                            "Saved. Your API key is encrypted on this device."
-                        } catch (_: Exception) { "Could not securely save the key on this device." }
-                    })
+                    "Settings" -> SettingsPage(endpoint, { endpoint=it }, models,
+                        { ai,value -> models=models+(ai to value); prefs.edit().putString("model_"+ai,value).apply() },
+                        apiKey, { apiKey=it }, settingsStatus, {
+                            prefs.edit().putString("api_endpoint",endpoint.trim()).apply()
+                            settingsStatus=try { writeSecret(context,apiKey.trim()); "Connection saved securely." }
+                            catch (_:Exception) { "Could not securely save the key." }
+                        }, themeName, { themeName=it; applyTheme(it); prefs.edit().putString("theme",it).apply() },
+                        { vaultUnlocked=false })
+                    "VOID LAB" -> if (vaultUnlocked) VoidLabPage() else { page="Home" }
+                    else -> { page="Home" }
                 }
             }
         }
     }
+    if (showUnlock) {
+        AlertDialog(onDismissRequest={showUnlock=false; unlockInput=""; unlockError=false}, containerColor=Panel,
+            title={Text("VOID PROTOCOL",color=MainText,fontWeight=FontWeight.Bold)},
+            text={
+                Column {
+                    Text("A hidden area is sealed. Enter the access phrase.",color=Muted,fontSize=12.sp)
+                    OutlinedTextField(unlockInput,{unlockInput=it;unlockError=false},singleLine=true,label={Text("Secret key")},
+                        visualTransformation=PasswordVisualTransformation(),colors=fieldColors())
+                    if(unlockError) Text("Access denied.",color=Color(0xFFE58A8A),fontSize=11.sp)
+                }
+            },
+            confirmButton={TextButton(onClick={
+                if(unlockInput.trim().equals("void",true)){vaultUnlocked=true;page="VOID LAB";showUnlock=false;unlockInput=""}
+                else unlockError=true
+            }){Text("UNLOCK",color=Purple)}},
+            dismissButton={TextButton(onClick={showUnlock=false;unlockInput=""}){Text("CANCEL",color=Muted)}}
+        )
+    }
 }
 
 @Composable
-private fun HomePage(active: String, choose: (String) -> Unit) {
+private fun HomePage(active: String, onChoose: (String) -> Unit, onSecret: () -> Unit) {
     Text("Choose your intelligence.", color = MainText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
     Text("Four modes. One home.", color = Muted, fontSize = 12.sp)
     Spacer(Modifier.height(13.dp))
@@ -182,11 +221,20 @@ private fun HomePage(active: String, choose: (String) -> Unit) {
             }
         }
     }
-    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp)) {
-        Column(Modifier.padding(14.dp)) {
-            Text("NEXUS SYSTEM", color = Muted, fontSize = 10.sp, letterSpacing = 1.sp)
-            Text("Your workspace is ready.", color = MainText, fontSize = 14.sp)
-            Text("Chats and memories are separated by mode. LOST MIND keeps your ideas together.", color = Muted, fontSize = 11.sp)
+    Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp)){
+        Column(Modifier.padding(14.dp)){
+            Text("NEXUS SYSTEM",color=Muted,fontSize=10.sp,letterSpacing=1.sp)
+            Text("Your workspace is ready.",color=MainText,fontSize=14.sp)
+            Text("Chats and memories are separated by mode. LOST MIND keeps your ideas together.",color=Muted,fontSize=11.sp)
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Card(colors=CardDefaults.cardColors(containerColor=DeepPurple),shape=RoundedCornerShape(16.dp),border=BorderStroke(1.dp,Purple)){
+        Column(Modifier.padding(14.dp)){
+            Text("◈  CLASSIFIED AREA",color=Purple,fontSize=10.sp)
+            Text("VOID PROTOCOL",color=MainText,fontSize=17.sp,fontWeight=FontWeight.Bold)
+            Text("Mystery tools and creative experiments.",color=Muted,fontSize=11.sp)
+            Button(onClick=onSecret,colors=ButtonDefaults.buttonColors(containerColor=Purple)){Text("ENTER WITH SECRET KEY")}
         }
     }
 }
@@ -284,30 +332,106 @@ private fun MemoryPage(mode: String, memory: String, onMemory: (String) -> Unit,
 }
 
 @Composable
-private fun SettingsPage(endpoint: String, onEndpoint: (String) -> Unit, model: String, onModel: (String) -> Unit,
-    key: String, onKey: (String) -> Unit, status: String, save: () -> Unit) {
-    Text("CONNECTION SETTINGS", color = MainText, fontSize = 19.sp, fontWeight = FontWeight.Bold)
-    Text("Connect to an OpenAI-compatible chat API.", color = Muted, fontSize = 11.sp)
-    Spacer(Modifier.height(12.dp))
-    Text("HTTPS API ENDPOINT", color = Muted, fontSize = 10.sp)
-    OutlinedTextField(endpoint, onEndpoint, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors())
-    Spacer(Modifier.height(8.dp))
-    Text("MODEL ID", color = Muted, fontSize = 10.sp)
-    OutlinedTextField(model, onModel, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = fieldColors())
-    Spacer(Modifier.height(8.dp))
-    Text("API KEY", color = Muted, fontSize = 10.sp)
-    OutlinedTextField(key, onKey, modifier = Modifier.fillMaxWidth(), singleLine = true,
-        visualTransformation = PasswordVisualTransformation(), colors = fieldColors())
-    Spacer(Modifier.height(10.dp))
-    Button(save, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = DeepPurple)) { Text("SAVE CONNECTION") }
-    if (status.isNotBlank()) Text(status, color = Color(0xFFC7A5E8), fontSize = 10.sp)
-    Spacer(Modifier.height(12.dp))
-    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(13.dp)) {
-        Column(Modifier.padding(12.dp)) {
-            Text("PRIVACY & SAFETY", color = MainText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            Text("The API key is encrypted using Android Keystore. Notes and chat history stay on this device. Messages sent to a provider leave your phone and follow that provider's policies. Use an account with a parent or guardian's help where required.", color = Muted, fontSize = 10.sp)
-        }
-    }
+private fun SettingsPage(endpoint:String,onEndpoint:(String)->Unit,models:Map<String,String>,onModel:(String,String)->Unit,
+ key:String,onKey:(String)->Unit,status:String,save:()->Unit,themeName:String,onTheme:(String)->Unit,lockVault:()->Unit){
+ var themeMenu by remember{mutableStateOf(false)}
+ var modeMenu by remember{mutableStateOf(false)}
+ var editMode by remember{mutableStateOf("NEXUS AI")}
+ var localModel by remember(editMode,models){mutableStateOf(models[editMode]?: "")}
+ LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp),contentPadding=PaddingValues(bottom=18.dp)){
+  item{Text("SETTINGS",color=MainText,fontSize=21.sp,fontWeight=FontWeight.Bold);Text("Organized controls for your workspace.",color=Muted,fontSize=11.sp)}
+  item{SettingsCard("APPEARANCE"){
+   Text("Choose a color theme.",color=Muted,fontSize=11.sp)
+   Box{OutlinedButton(onClick={themeMenu=true}){Text(themeName+"  ▾",color=MainText)}
+    DropdownMenu(expanded=themeMenu,onDismissRequest={themeMenu=false}){
+     listOf("Obsidian Purple","Midnight Blue","Emerald","Crimson","Soft Light").forEach{n->DropdownMenuItem(text={Text(n)},onClick={onTheme(n);themeMenu=false})}
+    }}
+  }}
+  item{SettingsCard("AI MODELS"){
+   Text("Select an AI, then edit its model ID here. Model controls stay in Settings.",color=Muted,fontSize=11.sp)
+   Box{OutlinedButton(onClick={modeMenu=true}){Text(editMode+"  ▾",color=MainText)}
+    DropdownMenu(expanded=modeMenu,onDismissRequest={modeMenu=false}){
+     aiModes.forEach{n->DropdownMenuItem(text={Text(n)},onClick={editMode=n;localModel=models[n]?: "";modeMenu=false})}
+    }}
+   OutlinedTextField(localModel,{localModel=it},modifier=Modifier.fillMaxWidth(),label={Text("Model ID")},singleLine=true,colors=fieldColors())
+   Button(onClick={onModel(editMode,localModel.trim())},colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("SAVE "+editMode+" MODEL")}
+  }}
+  item{SettingsCard("AI CONNECTION"){
+   Text("One HTTPS endpoint and key can serve all four models.",color=Muted,fontSize=11.sp)
+   OutlinedTextField(endpoint,onEndpoint,modifier=Modifier.fillMaxWidth(),label={Text("HTTPS API endpoint")},singleLine=true,colors=fieldColors())
+   OutlinedTextField(key,onKey,modifier=Modifier.fillMaxWidth(),label={Text("API key")},singleLine=true,visualTransformation=PasswordVisualTransformation(),colors=fieldColors())
+   Button(onClick=save,colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("SAVE CONNECTION")}
+   if(status.isNotBlank())Text(status,color=Purple,fontSize=10.sp)
+  }}
+  item{SettingsCard("PRIVACY & SECURITY"){
+   Text("API keys are encrypted with Android Keystore. Chats, memories and notes are stored locally. Messages sent to an AI provider leave your phone and follow that provider's policies. Never share your API key.",color=Muted,fontSize=11.sp)
+   OutlinedButton(onClick=lockVault){Text("LOCK VOID PROTOCOL",color=Purple)}
+  }}
+  item{SettingsCard("ABOUT NEXUS"){Text("NEXUS · Early access build",color=MainText,fontSize=12.sp);Text("External AI services may have usage limits or costs.",color=Muted,fontSize=10.sp)}}
+ }
+}
+@Composable
+private fun SettingsCard(title:String,content:@Composable ColumnScope.()->Unit){
+ Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp),border=BorderStroke(1.dp,DeepPurple)){
+  Column(Modifier.fillMaxWidth().padding(13.dp)){Text(title,color=Purple,fontSize=10.sp,fontWeight=FontWeight.Bold,letterSpacing=1.sp);Spacer(Modifier.height(8.dp));content()}
+ }
+}
+@Composable
+private fun VoidLabPage(){
+ var storyNo by remember{mutableIntStateOf(0)}
+ var story by remember{mutableStateOf(mysteryStory(0))}
+ var script by remember{mutableStateOf("The signal came from a room that does not exist.")}
+ var pitch by remember{mutableFloatStateOf(0.85f)}
+ var speed by remember{mutableFloatStateOf(0.9f)}
+ var status by remember{mutableStateOf("On-device speech. Your text is not uploaded.")}
+ val context=LocalContext.current
+ var engine by remember{mutableStateOf<TextToSpeech?>(null)}
+ var ready by remember{mutableStateOf(false)}
+ DisposableEffect(Unit){
+  val t=TextToSpeech(context){result->ready=result==TextToSpeech.SUCCESS;if(result==TextToSpeech.SUCCESS)engine?.language=Locale.US}
+  engine=t
+  onDispose{t.stop();t.shutdown();engine=null;ready=false}
+ }
+ LazyColumn(verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=20.dp)){
+  item{Text("VOID PROTOCOL",color=Purple,fontSize=11.sp,letterSpacing=2.sp);Text("THE HIDDEN LAB",color=MainText,fontSize=21.sp,fontWeight=FontWeight.Bold);Text("Experimental tools and creative utilities.",color=Muted,fontSize=11.sp)}
+  item{SettingsCard("01 / MYSTERY STORY ENGINE"){
+   Text("An original atmospheric mystery, generated offline.",color=Muted,fontSize=11.sp)
+   Text(story,color=MainText,fontSize=12.sp,lineHeight=19.sp)
+   Button(onClick={storyNo++;story=mysteryStory(storyNo)},colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("GENERATE ANOTHER STORY")}
+  }}
+  item{SettingsCard("02 / VOICE MAKER"){
+   Text("Turn your script into speech using your phone's built-in voice.",color=Muted,fontSize=11.sp)
+   OutlinedTextField(script,{script=it},modifier=Modifier.fillMaxWidth(),minLines=3,label={Text("Your script")},colors=fieldColors())
+   Row(horizontalArrangement=Arrangement.spacedBy(5.dp)){
+    OutlinedButton(onClick={pitch=0.85f}){Text("Calm",fontSize=10.sp)}
+    OutlinedButton(onClick={pitch=0.7f}){Text("Deep",fontSize=10.sp)}
+    OutlinedButton(onClick={pitch=1.15f}){Text("Bright",fontSize=10.sp)}
+   }
+   Text("Pitch",color=Muted,fontSize=10.sp);Slider(pitch,{pitch=it},valueRange=0.5f..1.5f)
+   Text("Speed",color=Muted,fontSize=10.sp);Slider(speed,{speed=it},valueRange=0.6f..1.3f)
+   Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+    Button(onClick={if(ready&&script.isNotBlank()){engine?.setPitch(pitch);engine?.setSpeechRate(speed);engine?.speak(script,TextToSpeech.QUEUE_FLUSH,null,"nexus_voice");status="Speaking with installed device voice."}else status="Speech engine loading or script empty."},enabled=ready&&script.isNotBlank(),colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("▶ SPEAK")}
+    OutlinedButton(onClick={engine?.stop();status="Playback stopped."}){Text("STOP",color=Purple)}
+   }
+   Text(status,color=Muted,fontSize=10.sp);Text("Audio file export is not included yet.",color=Muted,fontSize=9.sp)
+  }}
+  item{var idea by remember{mutableStateOf("A radio station receives weather reports from tomorrow.")};SettingsCard("03 / IDEA GLITCH"){
+   Text(idea,color=MainText,fontSize=14.sp,fontWeight=FontWeight.Medium)
+   Button(onClick={idea=ideaPrompt()},colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)){Text("ROLL A NEW IDEA")}
+  }}
+ }
+}
+private fun mysteryStory(n:Int):String{
+ val places=listOf("an abandoned observatory","a hotel with thirteen floors","a quiet train station","a library beneath the city","a house beside the salt flats")
+ val objects=listOf("a brass key","a cassette marked 04:17","a photograph with one face missing","a clock that runs backwards","a notebook filled with tomorrow's dates")
+ val clues=listOf("the lights blinked in a pattern","a voice whispered from a disconnected speaker","every window reflected a different room","the elevator stopped between floors","a message appeared on dusty glass")
+ val endings=listOf("The final page contained a drawing of the reader, standing exactly where they were.","At sunrise, the building was gone. The key remained warm in their pocket.","The signal stopped. Then the same message arrived from inside their own phone.","Behind the locked door was a second copy of the room, still waiting for someone to enter.")
+ val a=Math.floorMod(n*7+2,places.size);val b=Math.floorMod(n*11+1,objects.size);val c=Math.floorMod(n*13+3,clues.size);val d=Math.floorMod(n*17+1,endings.size)
+ return "At 04:17, a stranger arrived at "+places[a]+". On the desk sat "+objects[b]+". As soon as it was touched, "+clues[c]+". A label read: 'You have been here before.\\n\\n'"+endings[d]
+}
+private fun ideaPrompt():String{
+ val ideas=listOf("A city where every shadow points toward a missing street.","A music player that remembers songs nobody has written.","A game map that changes when you stop looking at it.","A museum displaying inventions from timelines that never happened.","A quiet planet where the stars turn off one by one.")
+ return ideas[(System.nanoTime().toInt() and Int.MAX_VALUE)%ideas.size]
 }
 
 private fun askProvider(endpoint: String, model: String, key: String, mode: String, history: List<ChatMessage>): Pair<String?, String?> {
