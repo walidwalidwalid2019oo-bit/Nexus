@@ -251,7 +251,7 @@ private fun ChatPage(
         }
         TextButton(onClick = clear) { Text("CLEAR", color = Muted, fontSize = 10.sp) }
     }
-    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp),
+    LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.68f), verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 8.dp)) {
         if (messages.isEmpty()) item {
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
@@ -510,6 +510,7 @@ private fun readSecret(context: Context): String = try {
     String(c.doFinal(packed.copyOfRange(12, packed.size)), Charsets.UTF_8)
 } catch (_: Exception) { "" }
 
+@Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Purple, unfocusedBorderColor = Color(0xFF3A3042),
     focusedTextColor = MainText, unfocusedTextColor = MainText, cursorColor = Purple
