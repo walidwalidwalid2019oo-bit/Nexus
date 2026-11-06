@@ -1,15 +1,21 @@
 # NEXUS
 
-A native Android prototype with a deep-black and dark-purple interface.
+Native Android workspace built with Kotlin and Jetpack Compose.
 
-## Included in this first build
-- Four selectable AI spaces: TITAN, VOID, NEXUS AI, and CREATIVE AI
-- LOST MIND notes saved locally on the device
-- Separate local memory slots for each AI space
-- Optional memory-sharing preference (sharing behavior is not wired up yet)
+## Features
+- Four independent AI spaces: TITAN, VOID, NEXUS AI, and CREATIVE AI
+- Separate conversation history for each AI mode
+- Configurable OpenAI-compatible HTTPS chat API
+- API key encrypted with Android Keystore
+- LOST MIND notes stored locally
+- Independent per-mode memory spaces
+- Deep-black and dark-purple interface
+
+## Configure live AI
+Open Settings and enter an HTTPS chat-completions endpoint, the provider's model ID, and an API key. The defaults are prefilled for Groq. A valid provider key is required; provider usage, account eligibility and possible charges depend on the provider. Do not share your key.
 
 ## Build
-Pushes to `main` automatically run the GitHub Actions workflow **Build NEXUS APK**. Download the `NEXUS-debug-APK` artifact from the successful workflow run.
+Pushes to main run the GitHub Actions workflow **Build NEXUS APK**. Download the `NEXUS-debug-APK` artifact from the successful run.
 
-## Current limitation
-This is the first UI and local-storage prototype. Live AI chat/API connections are not included yet. No API keys are required for this build.
+## Not implemented yet
+AI image/audio/video generation and actual cross-mode memory sharing are not included in this early test build.
