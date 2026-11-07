@@ -164,10 +164,12 @@ fun NexusApp() {
             }
         }) { padding ->
             Column(Modifier.fillMaxSize().background(Night).padding(padding).padding(horizontal = 17.dp)) {
-                Spacer(Modifier.height(14.dp))
-                Text("N E X U S", color = MainText, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
-                Text("YOUR DIGITAL SPACE  /  " + mode, color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
-                Spacer(Modifier.height(14.dp))
+                if (page != "Chat") {
+                    Spacer(Modifier.height(14.dp))
+                    Text("N E X U S", color = MainText, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+                    Text("YOUR DIGITAL SPACE  /  " + mode, color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+                    Spacer(Modifier.height(14.dp))
+                }
                 when (page) {
                     "Home" -> HomePage(mode, onChoose = {
                         mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
@@ -321,7 +323,7 @@ private fun ChatPage(
                 Text(if (sending) "GENERATING RESPONSE..." else "YOUR PRIVATE CONVERSATION", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
             }
             Surface(shape = RoundedCornerShape(50), color = DeepPurple) {
-                Text("●  ONLINE", modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = Color(0xFFD8B9F2), fontSize = 9.sp)
+                Text("●  READY", modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = Color(0xFFD8B9F2), fontSize = 9.sp)
             }
             TextButton(onClick = clear) { Text("CLEAR", color = Muted, fontSize = 9.sp) }
         }
