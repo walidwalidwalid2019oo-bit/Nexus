@@ -179,7 +179,8 @@ fun NexusApp() {
                 when (page) {
                     "Home" -> HomePage(mode, onChoose = {
                         mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
-                    }, onSecret = { showUnlock=true })
+                    }, onSecret = { showUnlock=true }, onNavigate = { page=it })
+                    "PROJECT MAP" -> ProjectMapPage(onBack = { page="Home" })
                     "Chat" -> ChatPage(mode, chats, chatInput, { chatInput = it }, selectedPhotoUri,
                         { photoPicker.launch(arrayOf("image/*")) }, { selectedPhotoUri = null }, sending, chatError, {
                         val prompt = chatInput.trim().ifBlank { if (selectedPhotoUri != null) "Please describe this image." else "" }
@@ -269,50 +270,165 @@ fun NexusApp() {
 }
 
 @Composable
-private fun HomePage(active: String, onChoose: (String) -> Unit, onSecret: () -> Unit) {
+private fun HomePage(
+    active: String,
+    onChoose: (String) -> Unit,
+    onSecret: () -> Unit,
+    onNavigate: (String) -> Unit
+) {
     Column(
-        Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
     ) {
-    Text("Choose your intelligence.", color = MainText, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-    Text("Four modes. One home.", color = Muted, fontSize = 12.sp)
-    Spacer(Modifier.height(13.dp))
-    listOf(
-        Triple("TITAN", "Personal companion", "Your familiar AI space"),
-        Triple("VOID", "Developer intelligence", "Code, systems and terminal thinking"),
-        Triple("NEXUS AI", "General assistant", "Everyday questions and ideas"),
-        Triple("CREATIVE AI", "Creative studio", "Music, images, stories and games")
-    ).forEach { item ->
-        Card(onClick = { onChoose(item.first) }, modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp),
-            shape = RoundedCornerShape(17.dp),
-            colors = CardDefaults.cardColors(containerColor = if (active == item.first) DeepPurple else Panel),
-            border = if (active == item.first) BorderStroke(1.dp, Purple) else null) {
-            Column(Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(item.first, color = MainText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.weight(1f))
-                    if (active == item.first) Text("ACTIVE", color = Color(0xFFC7A5E8), fontSize = 9.sp)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Panel),
+            shape = RoundedCornerShape(22.dp),
+            border = BorderStroke(1.dp, DeepPurple)
+        ) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("NEXUS  /  COMMAND CENTER", color = Purple, fontSize = 9.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                Text("Your space.\nYour systems.", color = MainText, fontSize = 27.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold)
+                Text("Four intelligence modes, one connected workspace.", color = Muted, fontSize = 11.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(color = DeepPurple, shape = RoundedCornerShape(50)) {
+                        Text("●  SYSTEM READY", color = Color(0xFFD8B9F2), modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), fontSize = 9.sp)
+                    }
+                    Surface(color = Night, shape = RoundedCornerShape(50)) {
+                        Text("ACTIVE  /  $active", color = Muted, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), fontSize = 9.sp)
+                    }
                 }
-                Text(item.second, color = MainText, fontSize = 12.sp)
-                Text(item.third, color = Muted, fontSize = 10.sp)
             }
         }
-    }
-    Card(colors=CardDefaults.cardColors(containerColor=Panel),shape=RoundedCornerShape(15.dp)){
-        Column(Modifier.padding(14.dp)){
-            Text("NEXUS SYSTEM",color=Muted,fontSize=10.sp,letterSpacing=1.sp)
-            Text("Your workspace is ready.",color=MainText,fontSize=14.sp)
-            Text("Chats and memories are separated by mode. LOST MIND keeps your ideas together.",color=Muted,fontSize=11.sp)
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("INTELLIGENCE", color = MainText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Choose a mode to open its chat.", color = Muted, fontSize = 10.sp)
+            }
+            Text("04 MODES", color = Purple, fontSize = 9.sp, letterSpacing = 1.sp)
         }
-    }
-    Spacer(Modifier.height(10.dp))
-    Card(colors=CardDefaults.cardColors(containerColor=DeepPurple),shape=RoundedCornerShape(16.dp),border=BorderStroke(1.dp,Purple)){
-        Column(Modifier.padding(14.dp)){
-            Text("◈  CLASSIFIED AREA",color=Purple,fontSize=10.sp)
-            Text("VOID PROTOCOL",color=MainText,fontSize=17.sp,fontWeight=FontWeight.Bold)
-            Text("Mystery tools and creative experiments.",color=Muted,fontSize=11.sp)
-            Button(onClick=onSecret,colors=ButtonDefaults.buttonColors(containerColor=Purple)){Text("ENTER WITH SECRET KEY")}
+        listOf(
+            Triple("TITAN", "Personal companion", "Your familiar AI space"),
+            Triple("VOID", "Developer intelligence", "Code, systems and terminal thinking"),
+            Triple("NEXUS AI", "General assistant", "Questions, planning and everyday ideas"),
+            Triple("CREATIVE AI", "Creative workspace", "Music, stories and game concepts")
+        ).forEachIndexed { index, item ->
+            Card(
+                onClick = { onChoose(item.first) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = if (active == item.first) DeepPurple else Panel),
+                border = BorderStroke(1.dp, if (active == item.first) Purple else Color(0xFF29212F))
+            ) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.size(39.dp).background(if (active == item.first) Purple else DeepPurple, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                        Text(listOf("T", "V", "N", "C")[index], color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(item.first, color = MainText, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(item.second, color = MainText, fontSize = 11.sp)
+                        Text(item.third, color = Muted, fontSize = 10.sp)
+                    }
+                    Text(if (active == item.first) "ACTIVE" else "OPEN  ›", color = if (active == item.first) Color(0xFFD8B9F2) else Purple, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
+
+        Text("WORKSPACES", color = MainText, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Card(onClick = { onNavigate("Lost Mind") }, modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp)) {
+                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("✧", color = Purple, fontSize = 21.sp)
+                    Text("LOST MIND", color = MainText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Thoughts & experiments", color = Muted, fontSize = 9.sp)
+                }
+            }
+            Card(onClick = { onNavigate("Memory") }, modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(15.dp)) {
+                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("◈", color = Purple, fontSize = 21.sp)
+                    Text("MEMORY", color = MainText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Mode-specific notes", color = Muted, fontSize = 9.sp)
+                }
+            }
+        }
+        Card(onClick = { onNavigate("PROJECT MAP") }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, DeepPurple)) {
+            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(42.dp).background(DeepPurple, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                    Text("⌘", color = Color(0xFFD8B9F2), fontSize = 22.sp)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("PROJECT MAP", color = MainText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Explore how your projects connect.", color = Muted, fontSize = 10.sp)
+                }
+                Text("OPEN  ›", color = Purple, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = DeepPurple), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Purple)) {
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("CLASSIFIED WORKSPACE", color = Color(0xFFD8B9F2), fontSize = 9.sp, letterSpacing = 1.5.sp)
+                Text("VOID PROTOCOL", color = MainText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Experimental tools and private creator workspaces.", color = Muted, fontSize = 10.sp)
+                Button(onClick = onSecret, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("ENTER WITH SECRET KEY") }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
     }
+}
+
+@Composable
+private fun ProjectMapPage(onBack: () -> Unit) {
+    val projects = listOf(
+        Triple("NEXUS", "Central workspace", "Multi-mode Android system connecting AI modes, memory and creator tools."),
+        Triple("TITAN", "AI companion", "A personal AI concept with its own identity and conversation history."),
+        Triple("VOID TERMINAL", "Developer system", "A terminal-style Python prototype for coding, tools and AI experiments."),
+        Triple("DEAD SOULS", "Game project", "A 2D atmospheric horror game concept built around an eerie hotel."),
+        Triple("DARK SIDE", "Music app", "A dark music-player concept with discovery and creative tools."),
+        Triple("LOST MIND", "Idea archive", "A place for quick thoughts, unfinished concepts and experiments.")
+    )
+    var selected by remember { mutableStateOf("NEXUS") }
+    val detail = projects.first { it.first == selected }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("NEXUS  /  PROJECT MAP", color = Purple, fontSize = 10.sp, letterSpacing = 1.7.sp, fontWeight = FontWeight.Bold)
+                Text("The connected universe.", color = MainText, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            }
+            TextButton(onClick = onBack) { Text("BACK", color = Muted, fontSize = 10.sp) }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = DeepPurple), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Purple)) {
+            Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("CENTRAL HUB", color = Color(0xFFD8B9F2), fontSize = 9.sp, letterSpacing = 1.5.sp)
+                Text("NEXUS", color = MainText, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text("Select any node below to inspect its role in the project universe.", color = Muted, fontSize = 10.sp)
+            }
+        }
+        Text("PROJECT NODES  /  SELECT TO EXPLORE", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp)
+        projects.forEachIndexed { index, project ->
+            Card(onClick = { selected = project.first }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (selected == project.first) DeepPurple else Panel), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, if (selected == project.first) Purple else Color(0xFF29212F))) {
+                Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Box(Modifier.size(36.dp).background(if (selected == project.first) Purple else Night, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                        Text(if (index == 0) "⌘" else project.first.take(1), color = MainText, fontWeight = FontWeight.Bold)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(project.first, color = MainText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(project.second, color = Muted, fontSize = 10.sp)
+                    }
+                    Text(if (selected == project.first) "SELECTED" else "›", color = Purple, fontSize = 10.sp)
+                }
+            }
+            if (index < projects.lastIndex) Box(Modifier.padding(start = 29.dp).width(1.dp).height(8.dp).background(DeepPurple))
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, DeepPurple)) {
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("NODE DETAILS", color = Purple, fontSize = 9.sp, letterSpacing = 1.3.sp)
+                Text(detail.first, color = MainText, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(detail.second, color = Muted, fontSize = 10.sp)
+                Text(detail.third, color = MainText, fontSize = 12.sp, lineHeight = 18.sp)
+                Text("Project status is descriptive and can be expanded with milestones and notes in a future update.", color = Muted, fontSize = 9.sp)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
     }
 }
 
