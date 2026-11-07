@@ -19,3 +19,8 @@ Pushes to main run the GitHub Actions workflow **Build NEXUS APK**. Download the
 
 ## Not implemented yet
 AI image/audio/video generation and actual cross-mode memory sharing are not included in this early test build.
+
+## NEXUS 3.0 foundation
+The Home screen now includes a NEXUS 3.0 upgrade hub with ten modules: Command Center, AI Council briefing builder, Project Studio, Voice System, File Lab, Memory overview, Automation preferences, Extensions preferences, Creative Studio brief builder, and Security status.
+
+The first foundation includes local project persistence, Android text-to-speech, document selection, copyable AI/creative briefs, and locally saved routine/extension preferences. Some modules are foundations rather than finished integrations; see [NEXUS_3_0_PLAN.md](NEXUS_3_0_PLAN.md) for the exact implemented scope and remaining work.
