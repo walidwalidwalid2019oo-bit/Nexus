@@ -197,7 +197,7 @@ fun NexusThreePage(onBack: () -> Unit, prefs: android.content.SharedPreferences)
 @Composable
 private fun UpgradeCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(17.dp), border = BorderStroke(1.dp, DeepPurple)) {
-        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp), content = content) {
+        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(title, color = Purple, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             content()
         }
