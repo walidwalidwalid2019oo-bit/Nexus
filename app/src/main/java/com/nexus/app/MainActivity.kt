@@ -206,6 +206,7 @@ fun NexusApp() {
                     "Home" -> HomePage(mode, onChoose = {
                         mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
                     }, onSecret = { showUnlock=true }, onNavigate = { page=it })
+                    "NEXUS 3.0" -> NexusThreePage(onBack = { page = "Home" }, prefs = prefs)
                     "PROJECT MAP" -> ProjectMapPage(onBack = { page="Home" })
                     "DARK SIDE" -> DarkSidePage(
                         tab = darkTab,
@@ -418,6 +419,18 @@ private fun HomePage(
                     Text("Music • Photos • Help • Codes", color = Color(0xFFB99BCB), fontSize = 10.sp)
                     Text("ENTER THE OTHER SIDE  ›", color = Color(0xFFC58BE8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+        Card(onClick = { onNavigate("NEXUS 3.0") }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF21122D)), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0xFF9A63C7))) {
+            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(42.dp).background(Color(0xFF4A2461), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                    Text("3.0", color = Color(0xFFEAD8F8), fontSize = 14.sp, fontWeight = FontWeight.Black)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("NEXUS 3.0", color = MainText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Ten upgrade modules • new tools and workspaces", color = Muted, fontSize = 10.sp)
+                }
+                Text("EXPLORE  ›", color = Purple, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
         }
         Card(onClick = { onNavigate("PROJECT MAP") }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, DeepPurple)) {
