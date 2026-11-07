@@ -7,6 +7,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -141,7 +142,12 @@ fun NexusApp() {
     var chats by remember(mode) { mutableStateOf(loadMessages(prefs, mode)) }
     var chatInput by remember { mutableStateOf("") }
     var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> selectedPhotoUri = uri }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
+            selectedPhotoUri = uri
+        }
+    }
     var sending by remember { mutableStateOf(false) }
     var chatError by remember { mutableStateOf("") }
     var endpoint by remember { mutableStateOf(prefs.getString("api_endpoint", "https://api.groq.com/openai/v1/chat/completions") ?: "") }
@@ -175,7 +181,7 @@ fun NexusApp() {
                         mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
                     }, onSecret = { showUnlock=true })
                     "Chat" -> ChatPage(mode, chats, chatInput, { chatInput = it }, selectedPhotoUri,
-                        { photoPicker.launch("image/*") }, { selectedPhotoUri = null }, sending, chatError, {
+                        { photoPicker.launch(arrayOf("image/*")) }, { selectedPhotoUri = null }, sending, chatError, {
                         val prompt = chatInput.trim().ifBlank { if (selectedPhotoUri != null) "Please describe this image." else "" }
                         if ((prompt.isNotEmpty() || selectedPhotoUri != null) && !sending) {
                             if (apiKey.isBlank()) chatError = "Add an API key in Settings to activate live AI chat."
@@ -191,14 +197,15 @@ fun NexusApp() {
                                 Thread {
                                     val imageDataUrl = try { photoForMessage?.let { encodeImageAsDataUrl(context, it) } }
                                         catch (e: Exception) { null }
-                                    val result = askProvider(endpoint, models[mode] ?: "", apiKey, mode, history, imageDataUrl)
+                                    val result = if (photoForMessage != null && imageDataUrl == null)
+                                        Pair(null, "Could not prepare that photo. Try a smaller image (under 8 MB).")
+                                    else askProvider(endpoint, models[mode] ?: "", apiKey, mode, history, imageDataUrl)
                                     Handler(Looper.getMainLooper()).post {
                                         if (result.first != null) {
                                             chats = chats + ChatMessage("assistant", result.first!!)
                                             saveMessages(prefs, mode, chats)
                                             chatError = ""
-                                        } else chatError = result.second ?: if (photoForMessage != null && imageDataUrl == null)
-                                            "Could not read that photo. Please choose it again." else "Connection failed."
+                                        } else chatError = result.second ?: "Connection failed."
                                         sending = false
                                     }
                                 }.start()
@@ -640,8 +647,9 @@ private fun askProvider(endpoint: String, model: String, key: String, mode: Stri
             else -> "You are NEXUS AI, a helpful, clear and honest general assistant."
         }
         val arr = JSONArray().put(JSONObject().put("role", "system").put("content", prompt))
-        history.takeLast(24).forEachIndexed { index, message ->
-            val isCurrentPhotoMessage = imageDataUrl != null && index == history.lastIndex
+        val recentHistory = history.takeLast(24)
+        recentHistory.forEachIndexed { index, message ->
+            val isCurrentPhotoMessage = imageDataUrl != null && index == recentHistory.lastIndex
             val content: Any = if (isCurrentPhotoMessage) JSONArray()
                 .put(JSONObject().put("type", "text").put("text", message.content))
                 .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", imageDataUrl)))
