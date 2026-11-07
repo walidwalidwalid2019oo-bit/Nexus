@@ -3,6 +3,7 @@ package com.nexus.app
 import android.Manifest
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.media.MediaPlayer
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -154,6 +155,31 @@ fun NexusApp() {
     var model by remember { mutableStateOf(prefs.getString("api_model", "openai/gpt-oss-120b") ?: "") }
     var apiKey by remember { mutableStateOf(readSecret(context)) }
     var settingsStatus by remember { mutableStateOf("") }
+    var darkTab by remember { mutableStateOf("MUSIC") }
+    var musicUri by remember { mutableStateOf<Uri?>(null) }
+    var musicName by remember { mutableStateOf("No track selected") }
+    var musicPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+    var musicPlaying by remember { mutableStateOf(false) }
+    var photoPrompt by remember { mutableStateOf("") }
+    var darkStatus by remember { mutableStateOf("") }
+    val musicPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                musicPlayer?.release()
+                musicPlayer = MediaPlayer.create(context, uri)
+                musicUri = uri
+                musicName = uri.lastPathSegment?.substringAfterLast('/') ?: "Selected audio"
+                musicPlaying = false
+                darkStatus = if (musicPlayer != null) "Track loaded. Press PLAY to listen." else "This audio file could not be opened."
+            } catch (_: Exception) {
+                darkStatus = "Could not open that audio file."
+            }
+        }
+    }
+    DisposableEffect(musicPlayer) {
+        val activePlayer = musicPlayer
+        onDispose { try { activePlayer?.release() } catch (_: Exception) { } }
+    }
 
     MaterialTheme(colorScheme = darkColorScheme(background = Night, surface = Panel, primary = Purple,
         secondary = DeepPurple, onBackground = MainText, onSurface = MainText, onPrimary = Color.White)) {
@@ -170,7 +196,7 @@ fun NexusApp() {
             }
         }) { padding ->
             Column(Modifier.fillMaxSize().background(Night).padding(padding).padding(horizontal = 17.dp)) {
-                if (page != "Chat") {
+                if (page != "Chat" && page != "DARK SIDE") {
                     Spacer(Modifier.height(14.dp))
                     Text("N E X U S", color = MainText, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
                     Text("YOUR DIGITAL SPACE  /  " + mode, color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
@@ -181,6 +207,36 @@ fun NexusApp() {
                         mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
                     }, onSecret = { showUnlock=true }, onNavigate = { page=it })
                     "PROJECT MAP" -> ProjectMapPage(onBack = { page="Home" })
+                    "DARK SIDE" -> DarkSidePage(
+                        tab = darkTab,
+                        onTab = { darkTab = it; darkStatus = "" },
+                        trackName = musicName,
+                        hasTrack = musicUri != null && musicPlayer != null,
+                        isPlaying = musicPlaying,
+                        onPickTrack = { musicPicker.launch(arrayOf("audio/*")) },
+                        onTogglePlayback = {
+                            try {
+                                val player = musicPlayer
+                                if (player != null) {
+                                    if (musicPlaying) { player.pause(); musicPlaying = false }
+                                    else { player.start(); musicPlaying = true }
+                                } else darkStatus = "Choose a local audio file first."
+                            } catch (_: Exception) { musicPlaying = false; darkStatus = "Playback failed for this file." }
+                        },
+                        photoPrompt = photoPrompt,
+                        onPhotoPrompt = { photoPrompt = it },
+                        status = darkStatus,
+                        onCopyPrompt = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("DARK SIDE image prompt", photoPrompt))
+                            darkStatus = "Prompt copied. Open the image playground to use it."
+                        },
+                        onOpenGenerator = {
+                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://pollinations.ai/play"))) }
+                            catch (_: Exception) { darkStatus = "Could not open the image playground." }
+                        },
+                        onBack = { page = "Home" }
+                    )
                     "Chat" -> ChatPage(mode, chats, chatInput, { chatInput = it }, selectedPhotoUri,
                         { photoPicker.launch(arrayOf("image/*")) }, { selectedPhotoUri = null }, sending, chatError, {
                         val prompt = chatInput.trim().ifBlank { if (selectedPhotoUri != null) "Please describe this image." else "" }
@@ -352,6 +408,18 @@ private fun HomePage(
                 }
             }
         }
+        Card(onClick = { onNavigate("DARK SIDE") }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF180D22)), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0xFF8B4BB8))) {
+            Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(43.dp).background(Color(0xFF351548), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                    Text("♫", color = Color(0xFFE4B8FF), fontSize = 24.sp)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("DARK SIDE", color = Color(0xFFEBD8F7), fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Music • Photos • Help • Codes", color = Color(0xFFB99BCB), fontSize = 10.sp)
+                    Text("ENTER THE OTHER SIDE  ›", color = Color(0xFFC58BE8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         Card(onClick = { onNavigate("PROJECT MAP") }, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, DeepPurple)) {
             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.size(42.dp).background(DeepPurple, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
@@ -372,6 +440,125 @@ private fun HomePage(
                 Button(onClick = onSecret, colors = ButtonDefaults.buttonColors(containerColor = Purple)) { Text("ENTER WITH SECRET KEY") }
             }
         }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun DarkSidePage(
+    tab: String,
+    onTab: (String) -> Unit,
+    trackName: String,
+    hasTrack: Boolean,
+    isPlaying: Boolean,
+    onPickTrack: () -> Unit,
+    onTogglePlayback: () -> Unit,
+    photoPrompt: String,
+    onPhotoPrompt: (String) -> Unit,
+    status: String,
+    onCopyPrompt: () -> Unit,
+    onOpenGenerator: () -> Unit,
+    onBack: () -> Unit
+) {
+    val darkBg = Color(0xFF09060D)
+    val darkPanel = Color(0xFF17101E)
+    val neon = Color(0xFFB56BE8)
+    Column(
+        Modifier.fillMaxSize().background(darkBg).verticalScroll(rememberScrollState()).padding(bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("‹ NEXUS", color = Color(0xFFB99BCB), fontSize = 11.sp) }
+            Spacer(Modifier.weight(1f))
+            Text("PRIVATE FREQUENCY", color = Color(0xFF8F719F), fontSize = 8.sp, letterSpacing = 1.5.sp)
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF21122D)), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Color(0xFF71418D))) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("NEXUS  /  AFTER HOURS", color = Color(0xFFD8A9F3), fontSize = 9.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
+                Text("DARK SIDE", color = Color(0xFFF4E9FA), fontSize = 29.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+                Text("A quieter corner for sound and imagination.", color = Color(0xFFB99BCB), fontSize = 11.sp)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("MUSIC", "PHOTOS", "HELP", "CODELIST").forEach { item ->
+                val selected = tab == item
+                Surface(
+                    onClick = { onTab(item) },
+                    modifier = Modifier.weight(1f),
+                    color = if (selected) Color(0xFF4A2461) else darkPanel,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, if (selected) neon else Color(0xFF30233A))
+                ) {
+                    Text(item, modifier = Modifier.padding(vertical = 11.dp), color = if (selected) Color.White else Color(0xFFB99BCB), fontSize = 8.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        }
+        when (tab) {
+            "MUSIC" -> {
+                Text("MUSIC ROOM", color = neon, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold)
+                Card(colors = CardDefaults.cardColors(containerColor = darkPanel), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Color(0xFF392746))) {
+                    Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("YOUR LOCAL LIBRARY", color = Color(0xFFEBD8F7), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("Play audio files stored on your device.", color = Color(0xFFB99BCB), fontSize = 10.sp)
+                        Text(trackName, color = Color.White, fontSize = 12.sp, maxLines = 2)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = onPickTrack, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF60347B))) { Text("CHOOSE AUDIO", fontSize = 9.sp) }
+                            OutlinedButton(onClick = onTogglePlayback, enabled = hasTrack, colors = ButtonDefaults.outlinedButtonColors(contentColor = neon)) {
+                                Text(if (isPlaying) "PAUSE" else "PLAY", fontSize = 9.sp)
+                            }
+                        }
+                    }
+                }
+                Text("DARK SIDE currently plays audio files you choose from your device. Online music services are not connected yet.", color = Color(0xFF8F8198), fontSize = 10.sp, lineHeight = 15.sp)
+            }
+            "PHOTOS" -> {
+                Text("IMAGE STUDIO", color = neon, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold)
+                Card(colors = CardDefaults.cardColors(containerColor = darkPanel), shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, Color(0xFF392746))) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("DESCRIBE YOUR IMAGE", color = Color(0xFFEBD8F7), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(value = photoPrompt, onValueChange = onPhotoPrompt, modifier = Modifier.fillMaxWidth(), minLines = 3, placeholder = { Text("A violet-lit city floating above the clouds…") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = neon, unfocusedBorderColor = Color(0xFF493653), focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = neon))
+                        Button(onClick = onCopyPrompt, enabled = photoPrompt.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF60347B))) { Text("COPY PROMPT") }
+                        OutlinedButton(onClick = onOpenGenerator, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.outlinedButtonColors(contentColor = neon)) { Text("OPEN POLLINATIONS PLAYGROUND") }
+                        Text("The in-app generator still needs a secure API connection. Your secret key is not stored in this APK.", color = Color(0xFFB99BCB), fontSize = 10.sp, lineHeight = 15.sp)
+                    }
+                }
+            }
+            "HELP" -> {
+                Text("DARK SIDE GUIDE", color = neon, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold)
+                listOf(
+                    "MUSIC" to "Choose an audio file on your device, then press PLAY or PAUSE.",
+                    "PHOTOS" to "Write an image idea, copy the prompt, and open the Pollinations playground. Native in-app generation will be connected after secure API setup.",
+                    "HELP" to "You're here. This guide explains each DARK SIDE section.",
+                    "CODELIST" to "See the available DARK SIDE shortcuts and what each one opens."
+                ).forEach { item ->
+                    Card(colors = CardDefaults.cardColors(containerColor = darkPanel), shape = RoundedCornerShape(14.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(item.first, color = Color(0xFFEBD8F7), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(item.second, color = Color(0xFFB99BCB), fontSize = 10.sp, lineHeight = 15.sp)
+                        }
+                    }
+                }
+            }
+            else -> {
+                Text("AVAILABLE CODES", color = neon, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold)
+                listOf(
+                    "DARK" to "Open the DARK SIDE workspace from the NEXUS home panel.",
+                    "MUSIC" to "Open the local music player section.",
+                    "PHOTOS" to "Open the image prompt workspace.",
+                    "HELP" to "Open the DARK SIDE guide.",
+                    "CODELIST" to "Show this list of available shortcuts."
+                ).forEach { item ->
+                    Card(colors = CardDefaults.cardColors(containerColor = darkPanel), shape = RoundedCornerShape(13.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(item.first, color = neon, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(82.dp))
+                            Text(item.second, color = Color(0xFFB99BCB), fontSize = 10.sp, lineHeight = 15.sp)
+                        }
+                    }
+                }
+                Text("These are navigation shortcuts, not terminal commands.", color = Color(0xFF8F8198), fontSize = 9.sp)
+            }
+        }
+        if (status.isNotBlank()) Text(status, color = Color(0xFFD8A9F3), fontSize = 10.sp, lineHeight = 15.sp)
         Spacer(Modifier.height(8.dp))
     }
 }
