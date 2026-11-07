@@ -1,6 +1,8 @@
 package com.nexus.app
 
 import android.Manifest
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -20,6 +22,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +36,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -55,7 +60,7 @@ private var Purple = Color(0xFF7040A0)
 private var DeepPurple = Color(0xFF301044)
 private var MainText = Color(0xFFEAE5EF)
 private var Muted = Color(0xFF9B8AA8)
-data class ChatMessage(val role: String, val content: String)
+data class ChatMessage(val role: String, val content: String, val imageUri: String? = null)
 
 private fun applyTheme(name: String) {
  when(name) {
@@ -135,6 +140,8 @@ fun NexusApp() {
     var sharing by remember { mutableStateOf(prefs.getBoolean("memory_sharing", false)) }
     var chats by remember(mode) { mutableStateOf(loadMessages(prefs, mode)) }
     var chatInput by remember { mutableStateOf("") }
+    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> selectedPhotoUri = uri }
     var sending by remember { mutableStateOf(false) }
     var chatError by remember { mutableStateOf("") }
     var endpoint by remember { mutableStateOf(prefs.getString("api_endpoint", "https://api.groq.com/openai/v1/chat/completions") ?: "") }
@@ -165,25 +172,31 @@ fun NexusApp() {
                     "Home" -> HomePage(mode, onChoose = {
                         mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
                     }, onSecret = { showUnlock=true })
-                    "Chat" -> ChatPage(mode, chats, chatInput, { chatInput = it }, sending, chatError, {
-                        val prompt = chatInput.trim()
-                        if (prompt.isNotEmpty() && !sending) {
+                    "Chat" -> ChatPage(mode, chats, chatInput, { chatInput = it }, selectedPhotoUri,
+                        { photoPicker.launch("image/*") }, { selectedPhotoUri = null }, sending, chatError, {
+                        val prompt = chatInput.trim().ifBlank { if (selectedPhotoUri != null) "Please describe this image." else "" }
+                        if ((prompt.isNotEmpty() || selectedPhotoUri != null) && !sending) {
                             if (apiKey.isBlank()) chatError = "Add an API key in Settings to activate live AI chat."
                             else {
-                                val history = chats + ChatMessage("user", prompt)
+                                val photoForMessage = selectedPhotoUri
+                                val history = chats + ChatMessage("user", prompt, photoForMessage?.toString())
                                 chats = history
                                 saveMessages(prefs, mode, history)
                                 chatInput = ""
+                                selectedPhotoUri = null
                                 chatError = ""
                                 sending = true
                                 Thread {
-                                    val result = askProvider(endpoint, models[mode] ?: "", apiKey, mode, history)
+                                    val imageDataUrl = try { photoForMessage?.let { encodeImageAsDataUrl(context, it) } }
+                                        catch (e: Exception) { null }
+                                    val result = askProvider(endpoint, models[mode] ?: "", apiKey, mode, history, imageDataUrl)
                                     Handler(Looper.getMainLooper()).post {
                                         if (result.first != null) {
                                             chats = chats + ChatMessage("assistant", result.first!!)
                                             saveMessages(prefs, mode, chats)
                                             chatError = ""
-                                        } else chatError = result.second ?: "Connection failed."
+                                        } else chatError = result.second ?: if (photoForMessage != null && imageDataUrl == null)
+                                            "Could not read that photo. Please choose it again." else "Connection failed."
                                         sending = false
                                     }
                                 }.start()
@@ -297,47 +310,117 @@ private fun HomePage(active: String, onChoose: (String) -> Unit, onSecret: () ->
 @Composable
 private fun ChatPage(
     mode: String, messages: List<ChatMessage>, input: String, onInput: (String) -> Unit,
+    selectedPhoto: Uri?, pickPhoto: () -> Unit, clearPhoto: () -> Unit,
     sending: Boolean, error: String, send: () -> Unit, clear: () -> Unit
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(mode + " CHAT", color = MainText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Separate conversation history for this AI.", color = Muted, fontSize = 10.sp)
+    val context = LocalContext.current
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text(mode, color = MainText, fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(if (sending) "GENERATING RESPONSE..." else "YOUR PRIVATE CONVERSATION", color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
+            }
+            Surface(shape = RoundedCornerShape(50), color = DeepPurple) {
+                Text("●  ONLINE", modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = Color(0xFFD8B9F2), fontSize = 9.sp)
+            }
+            TextButton(onClick = clear) { Text("CLEAR", color = Muted, fontSize = 9.sp) }
         }
-        TextButton(onClick = clear) { Text("CLEAR", color = Muted, fontSize = 10.sp) }
-    }
-    LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(0.68f), verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(vertical = 8.dp)) {
-        if (messages.isEmpty()) item {
-            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
-                Column(Modifier.padding(14.dp)) {
-                    Text("A new conversation.", color = MainText, fontWeight = FontWeight.SemiBold)
-                    Text("Set an HTTPS endpoint, model and API key in Settings to activate live chat.", color = Muted, fontSize = 11.sp)
+        LazyColumn(
+            Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            if (messages.isEmpty()) item {
+                Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, DeepPurple)) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("✦", color = Purple, fontSize = 25.sp)
+                        Text("A fresh space for ideas.", color = MainText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Ask a question, share a photo, or type SONG to open the Creative Studio.", color = Muted, fontSize = 12.sp)
+                    }
                 }
             }
+            items(messages) { message ->
+                val isUser = message.role == "user"
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start) {
+                    Card(
+                        Modifier.fillMaxWidth(if (isUser) 0.91f else 0.97f),
+                        colors = CardDefaults.cardColors(containerColor = if (isUser) DeepPurple else Panel),
+                        shape = RoundedCornerShape(if (isUser) 19.dp else 16.dp),
+                        border = if (isUser) null else BorderStroke(1.dp, Color(0xFF30243A))
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (isUser) "YOU" else mode.uppercase(), color = if (isUser) Color(0xFFE3C9F8) else Purple,
+                                    fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                Spacer(Modifier.weight(1f))
+                                if (!isUser) {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    TextButton(onClick = {
+                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("NEXUS response", message.content))
+                                    }, contentPadding = PaddingValues(horizontal = 7.dp, vertical = 0.dp)) {
+                                        Text("COPY  ⧉", color = Muted, fontSize = 9.sp)
+                                    }
+                                }
+                            }
+                            if (!message.imageUri.isNullOrBlank()) {
+                                val bitmap = remember(message.imageUri) {
+                                    try { context.contentResolver.openInputStream(Uri.parse(message.imageUri))?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }
+                                    catch (_: Exception) { null }
+                                }
+                                if (bitmap != null) Image(bitmap, contentDescription = "Attached photo",
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp), contentScale = ContentScale.Crop)
+                                else Text("Photo attached", color = Muted, fontSize = 10.sp)
+                            }
+                            if (message.content.isNotBlank()) Text(message.content, color = MainText, fontSize = 13.sp, lineHeight = 19.sp)
+                        }
+                    }
+                }
+            }
+            if (sending) item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(15.dp), color = Purple, strokeWidth = 2.dp)
+                    Text(mode + " is thinking...", color = Muted, fontSize = 11.sp)
+                }
+            }
+            if (error.isNotBlank()) item {
+                Text(error, color = Color(0xFFE6A0A0), fontSize = 11.sp)
+            }
         }
-        items(messages) { message ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start) {
-                Card(Modifier.fillMaxWidth(0.9f), colors = CardDefaults.cardColors(
-                    containerColor = if (message.role == "user") DeepPurple else Panel), shape = RoundedCornerShape(14.dp)) {
-                    Column(Modifier.padding(11.dp)) {
-                        Text(if (message.role == "user") "YOU" else mode, color = Color(0xFFC7A5E8), fontSize = 9.sp)
-                        Spacer(Modifier.height(3.dp))
-                        Text(message.content, color = MainText, fontSize = 13.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, DeepPurple)) {
+            Column(Modifier.fillMaxWidth().padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                if (selectedPhoto != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("PHOTO READY TO SEND", color = Purple, fontSize = 9.sp, modifier = Modifier.weight(1f))
+                        TextButton(onClick = clearPhoto, contentPadding = PaddingValues(4.dp)) { Text("REMOVE", color = Muted, fontSize = 9.sp) }
+                    }
+                    val preview = remember(selectedPhoto) {
+                        try { context.contentResolver.openInputStream(selectedPhoto)?.use { BitmapFactory.decodeStream(it)?.asImageBitmap() } }
+                        catch (_: Exception) { null }
+                    }
+                    if (preview != null) Image(preview, contentDescription = "Selected photo preview",
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp), contentScale = ContentScale.Crop)
+                }
+                OutlinedTextField(input, onInput, modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Message " + mode + "...  (type SONG for music)", color = Muted) },
+                    maxLines = 5, shape = RoundedCornerShape(15.dp),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    colors = fieldColors(), enabled = !sending)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = pickPhoto, enabled = !sending, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+                        Text("＋ PHOTO", color = Purple, fontSize = 10.sp)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Button(send, enabled = !sending && (input.isNotBlank() || selectedPhoto != null),
+                        colors = ButtonDefaults.buttonColors(containerColor = DeepPurple),
+                        contentPadding = PaddingValues(horizontal = 22.dp, vertical = 10.dp)) {
+                        Text(if (sending) "WAIT..." else "SEND  ➤", fontSize = 11.sp)
                     }
                 }
             }
         }
-        if (sending) item { Text(mode + " is thinking...", color = Muted, fontSize = 11.sp) }
-        if (error.isNotBlank()) item { Text(error, color = Color(0xFFE6A0A0), fontSize = 11.sp) }
     }
-    OutlinedTextField(input, onInput, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Message " + mode + "...", color = Muted) },
-        maxLines = 4, shape = RoundedCornerShape(14.dp), keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-        colors = fieldColors(), enabled = !sending)
-    Spacer(Modifier.height(6.dp))
-    Button(send, modifier = Modifier.fillMaxWidth(), enabled = !sending && input.isNotBlank(),
-        colors = ButtonDefaults.buttonColors(containerColor = DeepPurple)) { Text(if (sending) "THINKING..." else "SEND MESSAGE") }
-    Spacer(Modifier.height(4.dp))
 }
 
 @Composable
@@ -538,7 +621,7 @@ private fun ideaPrompt():String{
  return ideas[(System.nanoTime().toInt() and Int.MAX_VALUE)%ideas.size]
 }
 
-private fun askProvider(endpoint: String, model: String, key: String, mode: String, history: List<ChatMessage>): Pair<String?, String?> {
+private fun askProvider(endpoint: String, model: String, key: String, mode: String, history: List<ChatMessage>, imageDataUrl: String? = null): Pair<String?, String?> {
     var conn: HttpURLConnection? = null
     return try {
         if (!endpoint.startsWith("https://")) return Pair(null, "Use a secure HTTPS endpoint.")
@@ -555,7 +638,14 @@ private fun askProvider(endpoint: String, model: String, key: String, mode: Stri
             else -> "You are NEXUS AI, a helpful, clear and honest general assistant."
         }
         val arr = JSONArray().put(JSONObject().put("role", "system").put("content", prompt))
-        history.takeLast(24).forEach { arr.put(JSONObject().put("role", it.role).put("content", it.content)) }
+        history.takeLast(24).forEachIndexed { index, message ->
+            val isCurrentPhotoMessage = imageDataUrl != null && index == history.lastIndex
+            val content: Any = if (isCurrentPhotoMessage) JSONArray()
+                .put(JSONObject().put("type", "text").put("text", message.content))
+                .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", imageDataUrl)))
+                else message.content
+            arr.put(JSONObject().put("role", message.role).put("content", content))
+        }
         val body = JSONObject().put("model", model).put("messages", arr).toString()
         conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
         val code = conn.responseCode
@@ -571,14 +661,22 @@ private fun askProvider(endpoint: String, model: String, key: String, mode: Stri
     } finally { conn?.disconnect() }
 }
 
+private fun encodeImageAsDataUrl(context: Context, uri: Uri): String {
+    val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        ?: throw IllegalStateException("Unable to open selected photo")
+    if (bytes.size > 8 * 1024 * 1024) throw IllegalArgumentException("Please choose a photo smaller than 8 MB.")
+    return "data:" + mime + ";base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+}
+
 private fun loadMessages(prefs: android.content.SharedPreferences, mode: String): List<ChatMessage> = try {
     val a = JSONArray(prefs.getString("chat_" + mode, "[]") ?: "[]")
-    (0 until a.length()).map { i -> val o = a.getJSONObject(i); ChatMessage(o.optString("role"), o.optString("content")) }
+    (0 until a.length()).map { i -> val o = a.getJSONObject(i); ChatMessage(o.optString("role"), o.optString("content"), o.optString("imageUri").takeIf { it.isNotBlank() }) }
 } catch (_: Exception) { emptyList() }
 
 private fun saveMessages(prefs: android.content.SharedPreferences, mode: String, list: List<ChatMessage>) {
     val a = JSONArray()
-    list.takeLast(80).forEach { a.put(JSONObject().put("role", it.role).put("content", it.content)) }
+    list.takeLast(80).forEach { message -> val item = JSONObject().put("role", message.role).put("content", message.content); if (!message.imageUri.isNullOrBlank()) item.put("imageUri", message.imageUri); a.put(item) }
     prefs.edit().putString("chat_" + mode, a.toString()).apply()
 }
 
