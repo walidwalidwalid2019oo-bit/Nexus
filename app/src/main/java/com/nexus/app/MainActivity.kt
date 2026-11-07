@@ -123,6 +123,11 @@ fun NexusApp() {
     var unlockInput by remember { mutableStateOf("") }
     var unlockError by remember { mutableStateOf(false) }
     var vaultUnlocked by remember { mutableStateOf(false) }
+    var iseeUnlocked by remember { mutableStateOf(false) }
+    var ididUnlocked by remember { mutableStateOf(false) }
+    var pythonFileName by remember { mutableStateOf(prefs.getString("isee_file_name", "main.py") ?: "main.py") }
+    var pythonCode by remember { mutableStateOf(prefs.getString("isee_code", "# Welcome to ISEE\n# Your private Python workspace\n\nprint(\"Hello, NEXUS!\")") ?: "") }
+    var creatorLog by remember { mutableStateOf(prefs.getString("idid_creator_log", "") ?: "") }
     var notes by remember { mutableStateOf(loadNotes(prefs)) }
     var noteInput by remember { mutableStateOf("") }
     var memory by remember(mode) { mutableStateOf(prefs.getString("memory_" + mode, "") ?: "") }
@@ -215,6 +220,8 @@ fun NexusApp() {
                         }, themeName, { themeName=it; applyTheme(it); prefs.edit().putString("theme",it).apply() },
                         { vaultUnlocked=false }, notificationGranted, requestNotifications, sendTestNotification, notificationStatus)
                     "VOID LAB" -> if (vaultUnlocked) VoidLabPage(endpoint, models["CREATIVE AI"] ?: "", apiKey) else { page="Home" }
+                    "ISEE" -> if (iseeUnlocked) IseePage(pythonFileName, { pythonFileName=it }, pythonCode, { pythonCode=it }, { prefs.edit().putString("isee_file_name",pythonFileName.trim().ifBlank { "main.py" }).putString("isee_code",pythonCode).apply() }) else { page="Home" }
+                    "IDID" -> if (ididUnlocked) IdidPage(creatorLog, { creatorLog=it }, { prefs.edit().putString("idid_creator_log",creatorLog).apply() }) else { page="Home" }
                     else -> { page="Home" }
                 }
             }
@@ -222,18 +229,17 @@ fun NexusApp() {
     }
     if (showUnlock) {
         AlertDialog(onDismissRequest={showUnlock=false; unlockInput=""; unlockError=false}, containerColor=Panel,
-            title={Text("VOID PROTOCOL",color=MainText,fontWeight=FontWeight.Bold)},
+            title={Text("CLASSIFIED VAULT ACCESS",color=MainText,fontWeight=FontWeight.Bold)},
             text={
                 Column {
-                    Text("A hidden area is sealed. Enter the access phrase.",color=Muted,fontSize=12.sp)
+                    Text("Enter one of your access codes to open its workspace.",color=Muted,fontSize=12.sp)
                     OutlinedTextField(unlockInput,{unlockInput=it;unlockError=false},singleLine=true,label={Text("Secret key")},
                         visualTransformation=PasswordVisualTransformation(),colors=fieldColors())
                     if(unlockError) Text("Access denied.",color=Color(0xFFE58A8A),fontSize=11.sp)
                 }
             },
             confirmButton={TextButton(onClick={
-                if(unlockInput.trim().equals("void",true)){vaultUnlocked=true;page="VOID LAB";showUnlock=false;unlockInput=""}
-                else unlockError=true
+                when(unlockInput.trim().lowercase()) { "void" -> { vaultUnlocked=true; page="VOID LAB"; showUnlock=false; unlockInput="" }; "isee" -> { iseeUnlocked=true; page="ISEE"; showUnlock=false; unlockInput="" }; "idid" -> { ididUnlocked=true; page="IDID"; showUnlock=false; unlockInput="" }; else -> unlockError=true }
             }){Text("UNLOCK",color=Purple)}},
             dismissButton={TextButton(onClick={showUnlock=false;unlockInput=""}){Text("CANCEL",color=Muted)}}
         )
@@ -607,6 +613,89 @@ private fun readSecret(context: Context): String = try {
     c.init(Cipher.DECRYPT_MODE, getSecretKey(), GCMParameterSpec(128, packed.copyOfRange(0, 12)))
     String(c.doFinal(packed.copyOfRange(12, packed.size)), Charsets.UTF_8)
 } catch (_: Exception) { "" }
+
+
+@Composable
+private fun IseePage(
+    fileName: String, onFileName: (String) -> Unit, code: String, onCode: (String) -> Unit, save: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Text("ISEE  /  PYTHON LAB", color=Purple, fontSize=11.sp, letterSpacing=2.sp, fontWeight=FontWeight.Bold)
+        Text("Your private coding workspace.", color=MainText, fontSize=20.sp, fontWeight=FontWeight.Bold)
+        Text("Write and save Python snippets on this device. Code execution is not included in this first version.", color=Muted, fontSize=11.sp)
+        SettingsCard("WORKSPACE FILE") {
+            OutlinedTextField(fileName, onFileName, modifier=Modifier.fillMaxWidth(), singleLine=true,
+                label={Text("File name")}, colors=fieldColors())
+            OutlinedTextField(code, onCode, modifier=Modifier.fillMaxWidth().heightIn(min=280.dp),
+                label={Text("Python source")}, minLines=14, colors=fieldColors(),
+                textStyle=MaterialTheme.typography.bodySmall.copy(fontFamily=androidx.compose.ui.text.font.FontFamily.Monospace))
+            Button(onClick=save, modifier=Modifier.fillMaxWidth(), colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)) {
+                Text("SAVE PYTHON FILE")
+            }
+            Text("Saved locally inside NEXUS. This editor does not upload your code.", color=Muted, fontSize=10.sp)
+        }
+        SettingsCard("QUICK START") {
+            Text("Edit the starter code, then save it. Use ISEE to keep drafts, experiments and small Python projects organized.", color=Muted, fontSize=11.sp)
+        }
+    }
+}
+
+@Composable
+private fun IdidPage(log: String, onLog: (String) -> Unit, save: () -> Unit) {
+    val projects = listOf(
+        Triple("TITAN", "Personal AI companion concept and Android app experiments.", "PROJECT HISTORY"),
+        Triple("VOID TERMINAL", "Terminal-style Python workspace prototype, planned for AI chat and memory.", "PROTOTYPE"),
+        Triple("NEXUS", "Multi-mode Android workspace bringing AI spaces, LOST MIND and classified tools together.", "IN DEVELOPMENT"),
+        Triple("DEAD SOULS", "2D horror game concept about a father searching an eerie hotel for his children's souls.", "GAME CONCEPT"),
+        Triple("DARK SIDE", "Dark-themed music app concept with local playback and creative tools.", "APP CONCEPT"),
+        Triple("LOST MIND", "A space for quick thoughts, unusual ideas, experiments and unfinished projects.", "NEXUS WORKSPACE")
+    )
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Text("IDID  /  CREATOR ARCHIVE", color=Purple, fontSize=11.sp, letterSpacing=2.sp, fontWeight=FontWeight.Bold)
+        Text("THE STORY SO FAR", color=MainText, fontSize=21.sp, fontWeight=FontWeight.Bold)
+        Text("A growing record of ideas, experiments and projects. Status labels describe known stages, not claims that every project is finished.", color=Muted, fontSize=11.sp)
+        SettingsCard("THE CREATOR'S TIMELINE") {
+            listOf(
+                "THE BEGINNING" to "Ideas, experiments and the first AI companion plans.",
+                "BUILDING SYSTEMS" to "Python, Android prototypes, terminal interfaces and creative tools.",
+                "EXPANDING THE UNIVERSE" to "Game concepts, music ideas and the NEXUS multi-mode workspace.",
+                "CURRENT CHAPTER" to "Developing NEXUS and organizing the projects in one place."
+            ).forEachIndexed { index, item ->
+                Row(verticalAlignment=Alignment.Top, horizontalArrangement=Arrangement.spacedBy(9.dp)) {
+                    Text("STEP " + (index + 1), color=Purple, fontSize=12.sp, fontWeight=FontWeight.Bold)
+                    Column(Modifier.weight(1f)) {
+                        Text(item.first, color=MainText, fontSize=12.sp, fontWeight=FontWeight.SemiBold)
+                        Text(item.second, color=Muted, fontSize=10.sp)
+                    }
+                }
+            }
+        }
+        projects.forEach { project ->
+            Card(colors=CardDefaults.cardColors(containerColor=Panel), shape=RoundedCornerShape(14.dp),
+                border=BorderStroke(1.dp,DeepPurple)) {
+                Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment=Alignment.CenterVertically,
+                    horizontalArrangement=Arrangement.spacedBy(11.dp)) {
+                    Box(Modifier.size(38.dp).background(DeepPurple,RoundedCornerShape(11.dp)), contentAlignment=Alignment.Center) {
+                        Text(project.first.take(1), color=Color(0xFFD7B8F2), fontWeight=FontWeight.Bold, fontSize=17.sp)
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement=Arrangement.spacedBy(3.dp)) {
+                        Text(project.first, color=MainText, fontWeight=FontWeight.Bold, fontSize=13.sp)
+                        Text(project.second, color=Muted, fontSize=10.sp)
+                        Text(project.third, color=Purple, fontSize=9.sp, letterSpacing=1.sp)
+                    }
+                }
+            }
+        }
+        SettingsCard("CREATOR'S LOG") {
+            Text("Add your own memories, dates, milestones or details to the archive.", color=Muted, fontSize=10.sp)
+            OutlinedTextField(log,onLog,modifier=Modifier.fillMaxWidth(),minLines=4,
+                placeholder={Text("Write a moment you want this archive to remember...",color=Muted)},colors=fieldColors())
+            Button(onClick=save,modifier=Modifier.fillMaxWidth(),colors=ButtonDefaults.buttonColors(containerColor=DeepPurple)) {
+                Text("SAVE TO THE ARCHIVE")
+            }
+        }
+    }
+}
 
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
