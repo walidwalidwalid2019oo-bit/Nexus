@@ -8,7 +8,7 @@ NEXUS 3.0 is a staged expansion of the existing Android app. It preserves the cu
 2. **AI Council** — structured multi-AI review workflow. The first foundation creates a reusable briefing; actual parallel model orchestration is a later integration.
 3. **Project Studio** — local project list with add/remove and persistent storage. Milestones, task boards and visual dependencies are next.
 4. **Voice System** — Android text-to-speech. Speech recognition and live duplex voice are later work.
-5. **File Lab** — Android document picker and metadata. PDF extraction, previews and AI analysis are later work.
+5. **File Lab** — Android document picker with local text previews and copy-to-clipboard for TXT, MD, JSON, CSV, XML, Kotlin, Python and LOG files. PDF extraction and AI analysis are later work.
 6. **Memory 2.0** — status overview of existing per-mode memory and LOST MIND notes. Timeline search, tagging and import/export are next.
 7. **Automation Engine** — local routine preference toggle. Actual scheduled background jobs and notifications are later work.
 8. **NEXUS Extensions** — local extension preference switches. A safe plugin API, permissions and install/update lifecycle are later work.
@@ -17,7 +17,7 @@ NEXUS 3.0 is a staged expansion of the existing Android app. It preserves the cu
 
 ## Foundation build scope
 
-The NEXUS 3.0 screen is reachable from Home and contains all ten modules. Implemented interactions in this foundation are local project persistence, TTS, document selection, council/creative brief copying, routine preference storage, extension preference storage and local status summaries.
+The NEXUS 3.0 screen is reachable from Home and contains all ten modules. Implemented interactions in this foundation are local project persistence, TTS, document selection, local text-file previews and copying, council/creative brief copying, routine preference storage, extension preference storage and local status summaries.
 
 ## Important boundaries
 
