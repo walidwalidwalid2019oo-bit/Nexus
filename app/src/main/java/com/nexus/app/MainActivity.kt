@@ -56,12 +56,12 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-private var Night = Color(0xFF08070B)
-private var Panel = Color(0xFF15111B)
-private var Purple = Color(0xFF7040A0)
-private var DeepPurple = Color(0xFF301044)
-private var MainText = Color(0xFFEAE5EF)
-private var Muted = Color(0xFF9B8AA8)
+var Night = Color(0xFF08070B)
+var Panel = Color(0xFF15111B)
+var Purple = Color(0xFF7040A0)
+var DeepPurple = Color(0xFF301044)
+var MainText = Color(0xFFEAE5EF)
+var Muted = Color(0xFF9B8AA8)
 data class ChatMessage(val role: String, val content: String, val imageUri: String? = null)
 
 private fun applyTheme(name: String) {
