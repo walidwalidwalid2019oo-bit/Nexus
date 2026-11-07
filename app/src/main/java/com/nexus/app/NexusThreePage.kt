@@ -52,6 +52,8 @@ fun NexusThreePage(onBack: () -> Unit, prefs: android.content.SharedPreferences)
     var voiceStatus by remember { mutableStateOf("Android text-to-speech is available if a voice engine is installed.") }
     var chosenFile by remember { mutableStateOf("No document selected") }
     var chosenMime by remember { mutableStateOf("") }
+    var filePreview by remember { mutableStateOf("") }
+    var fileStatus by remember { mutableStateOf("Choose a text-based file to preview its contents.") }
     var routineEnabled by remember { mutableStateOf(prefs.getBoolean("n3_routine_daily_review", false)) }
     var extensionFlags by remember { mutableStateOf(listOf("Image tools", "Project widgets", "Voice tools", "Developer tools").associateWith { prefs.getBoolean("n3_ext_" + it, false) }) }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -59,6 +61,26 @@ fun NexusThreePage(onBack: () -> Unit, prefs: android.content.SharedPreferences)
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
             chosenFile = uri.lastPathSegment?.substringAfterLast('/') ?: "Selected document"
             chosenMime = context.contentResolver.getType(uri) ?: "Unknown file type"
+            val extension = chosenFile.substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val isText = chosenMime.startsWith("text/") || extension in setOf("txt", "md", "json", "csv", "xml", "kt", "py", "log")
+            if (isText) {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    if (content.length > 1_000_000) {
+                        filePreview = content.take(1_000_000)
+                        fileStatus = "Preview limited to the first 1 MB."
+                    } else {
+                        filePreview = content
+                        fileStatus = "File opened successfully."
+                    }
+                } catch (_: Exception) {
+                    filePreview = ""
+                    fileStatus = "Could not read this file."
+                }
+            } else {
+                filePreview = ""
+                fileStatus = "This file type is selected, but text preview supports TXT, MD, JSON, CSV, XML, Kotlin, Python and LOG files."
+            }
         }
     }
     val tts = remember {
@@ -142,10 +164,16 @@ fun NexusThreePage(onBack: () -> Unit, prefs: android.content.SharedPreferences)
                     }, modifier = Modifier.fillMaxWidth()) { Text("SPEAK") }
                     Text(voiceStatus, color = Muted, fontSize = 10.sp)
                 }
-                5 -> UpgradeCard("DOCUMENT PICKER") {
-                    Button(onClick = { filePicker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("CHOOSE DOCUMENT") }
+                5 -> UpgradeCard("NEXUS FILE LAB") {
+                    Text("OPEN AND PREVIEW TEXT FILES", color = Purple, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Button(onClick = { filePicker.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("OPEN FILE") }
                     Text(chosenFile, color = MainText, fontSize = 12.sp)
                     Text(chosenMime, color = Muted, fontSize = 10.sp)
+                    Text(fileStatus, color = Muted, fontSize = 10.sp)
+                    if (filePreview.isNotBlank()) {
+                        OutlinedTextField(filePreview, {}, modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp, max = 420.dp), readOnly = true, label = { Text("FILE CONTENT") }, colors = fieldColors())
+                        Button(onClick = { copyText(context, filePreview) }, modifier = Modifier.fillMaxWidth()) { Text("COPY CONTENT") }
+                    }
                 }
                 6 -> UpgradeCard("MEMORY STATUS") {
                     listOf("TITAN", "VOID", "NEXUS AI", "CREATIVE AI").forEach { ai ->
