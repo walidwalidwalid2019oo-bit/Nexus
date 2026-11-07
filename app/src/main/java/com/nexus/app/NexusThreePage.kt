@@ -36,7 +36,7 @@ fun NexusThreePage(onBack: () -> Unit, prefs: android.content.SharedPreferences)
         NexusModule(2, "AI COUNCIL", "Prepare multi-AI reviews", "Create a reusable briefing for TITAN, VOID, NEXUS AI and CREATIVE AI. Each model still runs through your configured provider; this screen does not pretend to run parallel agents."),
         NexusModule(3, "PROJECT STUDIO", "Keep project ideas organized", "Create and save a local project list on this device. Cloud collaboration and automatic task execution are not connected."),
         NexusModule(4, "VOICE SYSTEM", "Speak a message aloud", "Use Android's installed text-to-speech engine to read a sample or your own text. Speech recognition and live voice chat are not connected."),
-        NexusModule(5, "FILE LAB", "Choose a document", "Pick a document and view its name and content type. Full PDF/document analysis will require a parser and a connected AI workflow."),
+        NexusModule(5, "FILE LAB", "Open and preview text files", "Choose a supported text file, read its contents locally and copy the text. PDF extraction and AI document analysis are not connected yet."),
         NexusModule(6, "MEMORY 2.0", "Review saved NEXUS memory", "See which AI modes have local memory saved and how many LOST MIND notes exist. Existing memory data stays on this device."),
         NexusModule(7, "AUTOMATION ENGINE", "Manage routine ideas", "Save and enable/disable local routine presets. Background scheduling and automatic actions are not enabled in this foundation build."),
         NexusModule(8, "NEXUS EXTENSIONS", "Toggle optional modules", "Store local extension preferences. These switches organize the future extension system; they do not download third-party plugins."),
