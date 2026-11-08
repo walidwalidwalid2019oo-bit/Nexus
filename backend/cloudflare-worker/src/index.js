@@ -43,15 +43,15 @@ export default {
     }
 
     const declaredLength = Number(request.headers.get("content-length") || "0");
-    if (declaredLength > 64 * 1024) {
-      return json({ error: { message: "Request is too large (64 KB maximum)." } }, 413);
+    if (declaredLength > 12 * 1024 * 1024) {
+      return json({ error: { message: "Request is too large (12 MB maximum)." } }, 413);
     }
 
     let body;
     try {
       const raw = await request.text();
-      if (new TextEncoder().encode(raw).length > 64 * 1024) {
-        return json({ error: { message: "Request is too large (64 KB maximum)." } }, 413);
+      if (new TextEncoder().encode(raw).length > 12 * 1024 * 1024) {
+        return json({ error: { message: "Request is too large (12 MB maximum)." } }, 413);
       }
       body = JSON.parse(raw);
     } catch {
