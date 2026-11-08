@@ -18,8 +18,6 @@ function allowedModels(raw) {
 }
 
 async function rateLimit(request, env) {
-  // A KV namespace named RATE_LIMIT_KV must be bound at deployment.
-  if (!env.RATE_LIMIT_KV) return false;
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const minute = Math.floor(Date.now() / 60000);
   const key = "rl:" + minute + ":" + ip;
@@ -37,6 +35,11 @@ export default {
     }
     if (request.method !== "POST" || url.pathname !== "/v1/chat/completions") {
       return json({ error: { message: "Not found" } }, 404);
+    }
+
+    // Fail closed: never allow public provider usage without the KV rate-limit binding.
+    if (!env.RATE_LIMIT_KV) {
+      return json({ error: { message: "Gateway rate limiting is not configured." } }, 503);
     }
     if (await rateLimit(request, env)) {
       return json({ error: { message: "Rate limit reached. Try again shortly." } }, 429);
@@ -103,7 +106,6 @@ export default {
       let parsed;
       try { parsed = JSON.parse(responseText); }
       catch { parsed = { error: { message: "The AI provider returned an unreadable response." } }; }
-      // Do not expose upstream headers or credentials.
       return json(parsed, response.status);
     } catch {
       return json({ error: { message: "The AI provider could not be reached. Try again later." } }, 502);
