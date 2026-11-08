@@ -1,0 +1,12 @@
+name = "nexus-ai-gateway"
+main = "src/index.js"
+compatibility_date = "2026-11-08"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+REQUESTS_PER_MINUTE = "12"
+POLLINATIONS_MODELS = "openai/gpt-oss-120b"
+GROQ_MODELS = "llama-3.3-70b-versatile"
