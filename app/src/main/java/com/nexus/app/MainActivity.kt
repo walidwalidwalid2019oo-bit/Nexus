@@ -242,7 +242,7 @@ fun NexusApp() {
                         { photoPicker.launch(arrayOf("image/*")) }, { selectedPhotoUri = null }, sending, chatError, {
                         val prompt = chatInput.trim().ifBlank { if (selectedPhotoUri != null) "Please describe this image." else "" }
                         if ((prompt.isNotEmpty() || selectedPhotoUri != null) && !sending) {
-                            if (apiKey.isBlank()) chatError = "Add an API key in Settings to activate live AI chat."
+                            if (apiKey.isBlank() && !NexusGatewayClient.isConfigured(endpoint)) chatError = "Add an API key in Settings, or configure the private gateway endpoint."
                             else {
                                 val photoForMessage = selectedPhotoUri
                                 val history = chats + ChatMessage("user", prompt, photoForMessage?.toString())
@@ -905,7 +905,7 @@ private fun VoidLabPage(endpoint: String, modelId: String, apiKey: String){
     OutlinedTextField(vibe,{vibe=it},modifier=Modifier.fillMaxWidth(),label={Text("Sound / mood")},singleLine=true,colors=fieldColors())
     Button(onClick={
      if(topic.isBlank()) songStatus="Add a song theme first."
-     else if(apiKey.isBlank() || modelId.isBlank()) songStatus="Add an API key and CREATIVE AI model in Settings to generate lyrics."
+     else if((apiKey.isBlank() && !NexusGatewayClient.isConfigured(endpoint)) || modelId.isBlank()) songStatus="Configure the private gateway or add an API key, and choose a CREATIVE AI model in Settings."
      else{
       working=true;songStatus="CREATIVE AI is writing..."
       val prompt="Write completely original song lyrics based on this theme: "+topic+". Sound and mood: "+vibe+". Create a title, Verse 1, Pre-Chorus, Chorus, Verse 2, Bridge and Final Chorus. Make it vivid and singable. Do not imitate any existing artist or song. Return only the song draft."
@@ -950,17 +950,22 @@ private fun askProvider(endpoint: String, model: String, key: String, mode: Stri
     var conn: HttpURLConnection? = null
     return try {
         if (!endpoint.startsWith("https://")) return Pair(null, "Use a secure HTTPS endpoint.")
-        if (model.isBlank() || key.isBlank()) return Pair(null, "Complete the model and API key in Settings.")
-        conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"; connectTimeout = 20000; readTimeout = 60000; doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("Authorization", "Bearer " + key)
-        }
+        val useGateway = NexusGatewayClient.isConfigured(endpoint)
+        if (model.isBlank() || (!useGateway && key.isBlank())) return Pair(null, "Complete the model and API key in Settings.")
         val prompt = when (mode) {
             "TITAN" -> "You are TITAN, a friendly, honest and thoughtful personal AI companion."
             "VOID" -> "You are VOID, a precise developer assistant focused on programming, debugging and systems."
             "CREATIVE AI" -> "You are CREATIVE AI, an imaginative helper for original music, stories and game concepts."
             else -> "You are NEXUS AI, a helpful, clear and honest general assistant."
+        }
+        if (useGateway) {
+            val provider = if (model.lowercase().contains("llama") || model.lowercase().contains("groq")) "groq" else "pollinations"
+            return NexusGatewayClient.send(endpoint, provider, model, prompt, history, imageDataUrl)
+        }
+        conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"; connectTimeout = 20000; readTimeout = 60000; doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Authorization", "Bearer " + key)
         }
         val arr = JSONArray().put(JSONObject().put("role", "system").put("content", prompt))
         val recentHistory = history.takeLast(24)
