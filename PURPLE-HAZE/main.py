@@ -1,284 +1,508 @@
 import math
+import random
 import sys
 import pygame
 
-# PURPLE HAZE - phone-first platformer prototype
+# PURPLE HAZE 2.0 — phone-first playable vertical-slice prototype
 pygame.init()
-pygame.display.set_caption("PURPLE HAZE")
-screen = pygame.display.set_mode((960, 540), pygame.RESIZABLE)
+pygame.display.set_caption("PURPLE HAZE 2.0")
+W, H = 960, 540
+screen = pygame.display.set_mode((W, H), pygame.RESIZABLE)
 clock = pygame.time.Clock()
 
-W, H = 960, 540
-PURPLE = (119, 75, 190)
-DARK = (17, 12, 35)
-LILAC = (205, 170, 255)
-WHITE = (245, 238, 255)
-GOLD = (255, 220, 130)
+# Palette
+INK = (8, 6, 18)
+NIGHT = (16, 10, 31)
+VIOLET = (119, 65, 190)
+PURPLE = (154, 91, 230)
+LILAC = (210, 177, 255)
+PALE = (242, 229, 255)
+GOLD = (255, 220, 145)
+MIST = (72, 45, 105)
 
-world_width = 2300
-player = pygame.Rect(100, 330, 34, 48)
-spawn = (100, 330)
-vx, vy = 0.0, 0.0
-on_ground = False
-camera_x = 0.0
-talk = False
-won = False
-echo_line = 0
 font = pygame.font.Font(None, 30)
-small = pygame.font.Font(None, 22)
+small = pygame.font.Font(None, 21)
+large = pygame.font.Font(None, 72)
+tiny = pygame.font.Font(None, 17)
 
+def clamp(v, lo, hi):
+    return max(lo, min(hi, v))
+
+def text(surf, msg, pos, color=PALE, face=font):
+    surf.blit(face.render(msg, True, color), pos)
+
+def glow(surf, pos, radius, color, alpha=55):
+    layer = pygame.Surface((radius * 4, radius * 4), pygame.SRCALPHA)
+    for i in range(4, 0, -1):
+        r = int(radius * i / 2)
+        a = int(alpha / (i * 0.8))
+        pygame.draw.circle(layer, (*color, a), (radius * 2, radius * 2), r)
+    surf.blit(layer, (int(pos[0] - radius * 2), int(pos[1] - radius * 2)))
+
+def rounded(surf, rect, color, radius=12, border=None, width=2):
+    pygame.draw.rect(surf, color, rect, border_radius=radius)
+    if border:
+        pygame.draw.rect(surf, border, rect, width, border_radius=radius)
+
+# World layout
+WORLD_W = 3000
+FLOOR_Y = 470
 platforms = [
-    pygame.Rect(0, 410, 520, 70),
-    pygame.Rect(590, 360, 300, 55),
-    pygame.Rect(950, 320, 300, 55),
-    pygame.Rect(1320, 390, 330, 55),
-    pygame.Rect(1710, 370, 520, 90),
+    pygame.Rect(0, 440, 560, 100),
+    pygame.Rect(650, 390, 300, 42),
+    pygame.Rect(1030, 340, 280, 42),
+    pygame.Rect(1390, 405, 310, 42),
+    pygame.Rect(1780, 355, 300, 42),
+    pygame.Rect(2180, 410, 360, 42),
+    pygame.Rect(2630, 440, 370, 100),
 ]
-crystals = [
-    pygame.Rect(470, 365, 22, 30),
-    pygame.Rect(1080, 275, 22, 30),
-    pygame.Rect(1830, 325, 22, 30),
-]
-echo_rect = pygame.Rect(1080, 270, 30, 45)
-portal = pygame.Rect(2110, 270, 65, 100)
+crystal_spawns = [(420, 395), (1120, 295), (1900, 310), (2370, 365)]
+echo_box = pygame.Rect(1500, 340, 40, 65)
+portal = pygame.Rect(2820, 335, 85, 105)
 
-# Pointer state persists between frames, so holding a touch button keeps moving.
-active_fingers = {}
+player = pygame.Rect(110, 350, 36, 58)
+spawn = (110, 350)
+vx = vy = 0.0
+grounded = False
+camera_x = 0.0
+facing = 1
+dash_cooldown = 0.0
+dash_time = 0.0
+invuln = 0.0
+health = 3
+game_state = "menu"
+dialogue_open = False
+dialogue_index = 0
+won = False
+elapsed = 0.0
+
+crystals = [pygame.Rect(x, y, 22, 34) for x, y in crystal_spawns]
+particles = []
+stars = [(random.randrange(WORLD_W), random.randrange(20, 330), random.choice([1, 1, 2])) for _ in range(130)]
+echo_lines = [
+    "You have returned to a place that remembers you.",
+    "The lights are fragments of the Veil. Gather them.",
+    "The little machine beside you has lost more than it knows.",
+    "When the gate wakes, do not mistake it for an answer."
+]
+
+# HILPO companion
+hilpo_x, hilpo_y = 155.0, 330.0
+hilpo_angle = 0.0
+hilpo_mode = "FOLLOW"
+hilpo_message = ""
+hilpo_message_time = 0.0
+scan_time = 0.0
+
+# Input: edge-triggered buttons prevent accidental repeated actions
+finger_points = {}
 mouse_down = False
 mouse_pos = (0, 0)
 jump_was_down = False
-
-def draw_text(surface, message, x, y, color=WHITE, face=font):
-    surface.blit(face.render(message, True, color), (x, y))
-
-def viewport():
-    sw, sh = screen.get_size()
-    scale = min(sw / W, sh / H)
-    vw, vh = int(W * scale), int(H * scale)
-    return sw, sh, scale, (sw - vw) // 2, (sh - vh) // 2, vw, vh
-
-def to_game_coords(pos):
-    sw, sh, scale, ox, oy, vw, vh = viewport()
-    x, y = pos
-    return ((x - ox) / scale, (y - oy) / scale)
+interact_was_down = False
+dash_was_down = False
 
 def controls():
     return {
-        "left": pygame.Rect(22, 438, 78, 76),
-        "right": pygame.Rect(112, 438, 78, 76),
+        "left": pygame.Rect(22, 438, 76, 76),
+        "right": pygame.Rect(108, 438, 76, 76),
         "jump": pygame.Rect(850, 438, 88, 76),
-        "echo": pygame.Rect(850, 350, 88, 72),
+        "action": pygame.Rect(850, 350, 88, 72),
+        "scan": pygame.Rect(750, 438, 82, 76),
     }
 
-def draw_button(surface, label, rect, pressed=False):
-    fill = (112, 78, 160) if pressed else (57, 39, 91)
-    pygame.draw.rect(surface, fill, rect, border_radius=15)
-    pygame.draw.rect(surface, (177, 139, 235), rect, 2, border_radius=15)
-    txt = small.render(label, True, WHITE)
-    surface.blit(txt, txt.get_rect(center=rect.center))
+def draw_button(surf, label, rect, active=False):
+    fill = (91, 54, 137) if active else (31, 22, 51)
+    rounded(surf, rect, fill, 15, (155, 112, 213), 2)
+    label_img = small.render(label, True, PALE)
+    surf.blit(label_img, label_img.get_rect(center=rect.center))
 
-def resolve_horizontal(rect, dx):
+def add_particles(x, y, color=PURPLE, count=12, speed=100):
+    for _ in range(count):
+        a = random.random() * math.tau
+        sp = random.uniform(speed * .25, speed)
+        particles.append([float(x), float(y), math.cos(a)*sp, math.sin(a)*sp,
+                          random.uniform(.35, .8), color, random.randint(2, 5)])
+
+def update_particles(dt):
+    for p in particles[:]:
+        p[0] += p[2] * dt
+        p[1] += p[3] * dt
+        p[4] -= dt
+        p[3] += 35 * dt
+        if p[4] <= 0:
+            particles.remove(p)
+
+def resolve_x(rect, dx):
     rect.x += int(dx)
-    for solid in platforms:
-        if rect.colliderect(solid):
+    for block in platforms:
+        if rect.colliderect(block):
             if dx > 0:
-                rect.right = solid.left
+                rect.right = block.left
             elif dx < 0:
-                rect.left = solid.right
+                rect.left = block.right
 
-def resolve_vertical(rect, dy):
-    global vy, on_ground
+def resolve_y(rect, dy):
+    global vy, grounded
     rect.y += int(dy)
-    on_ground = False
-    for solid in platforms:
-        if rect.colliderect(solid):
+    grounded = False
+    for block in platforms:
+        if rect.colliderect(block):
             if dy > 0:
-                rect.bottom = solid.top
-                on_ground = True
+                rect.bottom = block.top
+                grounded = True
             elif dy < 0:
-                rect.top = solid.bottom
-            vy = 0.0
-    if rect.bottom >= 520:
-        rect.bottom = 520
-        vy = 0.0
-        on_ground = True
+                rect.top = block.bottom
+            vy = 0
 
-def echo_speak():
-    global talk, echo_line
-    talk = not talk
-    if talk:
-        echo_line = (echo_line + 1) % 3
+def world_to_screen(x, y):
+    return int(x - camera_x), int(y)
 
-echo_messages = [
-    "The crystals remember the way. Follow their light.",
-    "Some paths only appear when you keep moving.",
-    "The portal is quiet. Three lights will wake it.",
-]
-
-def draw_world(canvas, camera):
-    # Soft night-sky gradient
+def draw_background(surf):
     for y in range(H):
         t = y / H
-        color = (int(18 + 18*t), int(12 + 8*t), int(43 + 35*t))
-        pygame.draw.line(canvas, color, (0, y), (W, y))
+        pygame.draw.line(surf, (int(9+13*t), int(7+8*t), int(25+30*t)), (0,y), (W,y))
+    # distant planet
+    px = int(770 - camera_x * .035)
+    glow(surf, (px, 110), 65, (112, 70, 170), 35)
+    pygame.draw.circle(surf, (52, 35, 83), (px, 110), 48)
+    pygame.draw.arc(surf, (121, 83, 166), (px-54, 83, 108, 55), .1, 2.8, 2)
+    for sx, sy, size in stars:
+        x = int((sx - camera_x * .18) % WORLD_W)
+        x = x % W
+        if (sx + int(camera_x*.18)) % 5 == 0:
+            pygame.draw.circle(surf, (110, 91, 151), (x, sy), size)
+    # atmospheric haze bands
+    haze = pygame.Surface((W,H), pygame.SRCALPHA)
+    for i in range(5):
+        yy = 245 + i*35 + int(math.sin(elapsed*.35+i)*10)
+        pygame.draw.ellipse(haze, (95, 49, 135, 12), (-100, yy, 1180, 100))
+    surf.blit(haze, (0,0))
 
-    # Stars drift at a slower speed than the world.
-    for i in range(55):
-        x = int((i * 197 - camera * 0.22) % W)
-        y = (i * 83) % 300
-        pygame.draw.circle(canvas, (145, 122, 185), (x, y), 1)
-
-    pygame.draw.circle(canvas, (83, 55, 132), (760, 110), 62)
-    pygame.draw.circle(canvas, (145, 104, 190), (740, 90), 10)
-
-    # Platforms
+def draw_platforms(surf):
     for p in platforms:
-        r = pygame.Rect(int(p.x-camera), p.y, p.width, p.height)
-        pygame.draw.rect(canvas, (49, 31, 78), r, border_radius=12)
-        pygame.draw.rect(canvas, (137, 93, 185), (r.x, r.y, r.width, 8), border_radius=5)
-        # Tiny glowing stones along the island edge
-        for gx in range(r.left + 18, r.right - 8, 70):
-            pygame.draw.circle(canvas, (94, 66, 132), (gx, r.bottom - 12), 3)
+        r = pygame.Rect(p.x-camera_x, p.y, p.width, p.height)
+        if r.right < -20 or r.left > W+20:
+            continue
+        # island shadow and layered rock
+        pygame.draw.ellipse(surf, (5,4,14), (r.x-8, r.bottom-10, r.width+16, 32))
+        pygame.draw.rect(surf, (35, 24, 55), r, border_radius=9)
+        pygame.draw.rect(surf, (70, 43, 99), (r.x, r.y, r.width, 10), border_radius=5)
+        pygame.draw.line(surf, (145, 91, 184), (r.x+12,r.y+2), (r.right-12,r.y+2), 2)
+        for j in range(r.x+20, r.right-10, 58):
+            pygame.draw.polygon(surf, (48,32,69), [(j,r.bottom-5),(j+10,r.bottom+13),(j+22,r.bottom-5)])
 
-    # Crystals
-    for crystal in crystals:
-        cx = crystal.centerx - camera
-        pygame.draw.polygon(canvas, GOLD, [
-            (cx, crystal.top), (crystal.right-camera, crystal.centery),
-            (cx, crystal.bottom), (crystal.left-camera, crystal.centery)
-        ])
-        pygame.draw.polygon(canvas, WHITE, [
-            (cx, crystal.top+5), (cx+4, crystal.centery), (cx, crystal.bottom-5)
-        ])
+def draw_crystals(surf):
+    for c in crystals:
+        x, y = world_to_screen(c.centerx, c.centery)
+        glow(surf, (x,y), 17, GOLD, 55)
+        pts = [(x,y-20),(x+12,y),(x,y+20),(x-12,y)]
+        pygame.draw.polygon(surf, (255,205,125), pts)
+        pygame.draw.polygon(surf, (255,245,213), [(x,y-14),(x+4,y),(x,y+11)])
+        pygame.draw.line(surf, (255,255,245), (x,y-13),(x,y+10), 2)
 
-    # ECHO guide
-    er = pygame.Rect(echo_rect.x-camera, echo_rect.y, echo_rect.width, echo_rect.height)
-    pulse = int(3 * math.sin(pygame.time.get_ticks() / 300))
-    pygame.draw.circle(canvas, LILAC, (er.centerx, er.y + 7), 15 + pulse)
-    pygame.draw.rect(canvas, (105, 77, 155), (er.x, er.y+18, er.width, 27), border_radius=8)
-    draw_text(canvas, "ECHO", er.x-5, er.y-25, LILAC, small)
+def draw_hollow(surf):
+    x, y = world_to_screen(player.centerx, player.centery)
+    bob = math.sin(elapsed*4)*3
+    glow(surf, (x,y), 34, (139,68,220), 60)
+    # smoke trail
+    for i in range(5):
+        sx = x - facing*(10+i*9)
+        sy = int(y+12+i*4+math.sin(elapsed*5+i)*5)
+        pygame.draw.circle(surf, (65,35,97), (sx,sy), max(2,9-i))
+    body = [(x, int(y-30+bob)), (x+15,int(y-17+bob)), (x+13,int(y+18+bob)),
+            (x,int(y+29+bob)), (x-13,int(y+18+bob)), (x-15,int(y-17+bob))]
+    pygame.draw.polygon(surf, (13,9,23), body)
+    pygame.draw.polygon(surf, (116,67,166), body, 2)
+    pygame.draw.line(surf, (192,139,255), (x+facing*5,y-10),(x+facing*5,y+11), 2)
 
-    # Portal
-    pr = pygame.Rect(portal.x-camera, portal.y, portal.width, portal.height)
-    pygame.draw.ellipse(canvas, (102, 63, 174), pr, 7)
-    pygame.draw.ellipse(canvas, LILAC, pr.inflate(-18, -15), 3)
+def draw_hilpo(surf):
+    x, y = int(hilpo_x-camera_x), int(hilpo_y)
+    pulse = 2*math.sin(elapsed*5)
+    glow(surf, (x,y), 23, (142,76,230), 65)
+    pygame.draw.circle(surf, (29,23,47), (x,y), 14)
+    pygame.draw.circle(surf, (133,91,183), (x,y), 14, 2)
+    pygame.draw.circle(surf, (205,164,255), (x,y), int(5+pulse*.3))
+    pygame.draw.arc(surf, (239,220,255), (x-8,y-8,16,16), .3, 2.5, 2)
+    # tiny side fins
+    pygame.draw.polygon(surf, (91,62,130), [(x-13,y),(x-21,y-5),(x-19,y+6)])
+    pygame.draw.polygon(surf, (91,62,130), [(x+13,y),(x+21,y-5),(x+19,y+6)])
 
-    # Player
-    px = int(player.x-camera)
-    pygame.draw.ellipse(canvas, (91, 65, 130), (px-5, player.bottom-4, 44, 10))
-    pygame.draw.rect(canvas, (225, 205, 255), (px, player.y, player.width, player.height), border_radius=8)
-    pygame.draw.rect(canvas, (145, 111, 194), (px+6, player.y+9, 7, 7), border_radius=3)
-    pygame.draw.rect(canvas, (145, 111, 194), (px+21, player.y+9, 7, 7), border_radius=3)
+def draw_echo(surf):
+    x, y = world_to_screen(echo_box.centerx, echo_box.centery)
+    pulse = int(4*math.sin(elapsed*2))
+    glow(surf, (x,y), 34, (170,120,235), 40)
+    pygame.draw.circle(surf, (187,151,224), (x,y-12), 17+pulse, 2)
+    pygame.draw.circle(surf, (68,48,96), (x,y-12), 11)
+    pygame.draw.line(surf, (179,143,220), (x,y+5),(x,y+30), 3)
+    pygame.draw.line(surf, (179,143,220), (x-13,y+15),(x+13,y+15), 2)
+    text(surf, "E C H O", (x-27,y-45), LILAC, tiny)
+
+def draw_portal(surf):
+    x, y = world_to_screen(portal.centerx, portal.centery)
+    glow(surf, (x,y), 55, (130,69,204), 30)
+    pygame.draw.ellipse(surf, (76,43,119), (x-34,y-52,68,104), 8)
+    pygame.draw.ellipse(surf, (181,132,239), (x-23,y-42,46,84), 3)
+    pygame.draw.ellipse(surf, (31,19,53), (x-16,y-34,32,68))
+    if not crystals:
+        pygame.draw.ellipse(surf, (205,166,255), (x-12,y-29,24,58), 2)
+
+def draw_particles(surf):
+    for p in particles:
+        x = int(p[0]-camera_x)
+        if -10 < x < W+10:
+            pygame.draw.circle(surf, p[5], (x,int(p[1])), max(1,int(p[6]*p[4])))
+
+def draw_hud(surf):
+    rounded(surf, (18,16,300,62), (20,14,37), 12, (91,62,128), 1)
+    text(surf, "VESPER  /  SHATTERED ISLES", (31,25), LILAC, small)
+    text(surf, "VEIL SHARDS", (31,49), PALE, tiny)
+    for i in range(4):
+        col = GOLD if i < 4-len(crystals) else (67,52,83)
+        pygame.draw.circle(surf, col, (148+i*25,56), 7)
+    # health
+    for i in range(3):
+        pygame.draw.circle(surf, (191,111,220) if i < health else (55,42,68), (270+i*18,55), 6)
+    # HILPO state
+    rounded(surf, (780,16,160,43), (20,14,37), 10, (91,62,128), 1)
+    pygame.draw.circle(surf, PURPLE, (798,37), 5)
+    text(surf, "HILPO  "+hilpo_mode, (811,27), PALE, tiny)
+
+def draw_dialogue(surf, speaker, line):
+    rounded(surf, (135,365,690,105), (17,12,32), 14, (159,119,210), 2)
+    text(surf, speaker, (158,380), LILAC, small)
+    text(surf, line, (158,410), PALE, small)
+    text(surf, "TAP ACTION / E TO CONTINUE", (158,447), (157,133,183), tiny)
+
+def draw_menu(surf):
+    draw_background(surf)
+    # title treatment
+    glow(surf, (480,210), 115, (123,61,196), 35)
+    title = large.render("PURPLE HAZE", True, PALE)
+    surf.blit(title, title.get_rect(center=(480,205)))
+    sub = small.render("A WORLD THAT REMEMBERS", True, LILAC)
+    surf.blit(sub, sub.get_rect(center=(480,252)))
+    rounded(surf, (350,320,260,62), (42,26,66), 15, (167,119,226), 2)
+    start = font.render("BEGIN THE AWAKENING", True, PALE)
+    surf.blit(start, start.get_rect(center=(480,351)))
+    text(surf, "Touch the button or press ENTER", (382,405), (171,151,195), small)
+    text(surf, "2.0  •  ANDROID / KEYBOARD", (400,492), (116,95,145), tiny)
+
+def show_message(msg):
+    global hilpo_message, hilpo_message_time
+    hilpo_message = msg
+    hilpo_message_time = 2.5
+
+def interact():
+    global dialogue_open, dialogue_index, won
+    near_echo = abs(player.centerx-echo_box.centerx)<125 and abs(player.centery-echo_box.centery)<120
+    near_portal = abs(player.centerx-portal.centerx)<100 and abs(player.centery-portal.centery)<110
+    if dialogue_open:
+        dialogue_index += 1
+        if dialogue_index >= len(echo_lines):
+            dialogue_open = False
+        return
+    if near_echo:
+        dialogue_open = True
+        dialogue_index = 0
+    elif near_portal:
+        if not crystals:
+            won = True
+            show_message("The gate is awake.")
+        else:
+            show_message("HILPO: Veil shards missing.")
+    else:
+        show_message("HILPO: No signal nearby.")
+
+def scan():
+    global scan_time
+    scan_time = 1.2
+    show_message("HILPO: Scanning... Veil signature detected.")
+    add_particles(hilpo_x, hilpo_y, LILAC, 18, 75)
+
+def reset_game():
+    global player, vx, vy, camera_x, crystals, health, won, dialogue_open
+    global hilpo_x, hilpo_y, game_state, particles, dialogue_index
+    player.topleft = spawn
+    vx = vy = camera_x = 0
+    crystals = [pygame.Rect(x,y,22,34) for x,y in crystal_spawns]
+    health = 3
+    won = False
+    dialogue_open = False
+    dialogue_index = 0
+    hilpo_x, hilpo_y = 155.0, 330.0
+    particles = []
+    game_state = "play"
 
 def main():
-    global screen, vx, vy, on_ground, camera_x, talk, won, mouse_down, mouse_pos
+    global screen, vx, vy, grounded, camera_x, facing, dash_time, dash_cooldown
+    global invuln, health, elapsed, game_state, dialogue_open, hilpo_x, hilpo_y
+    global hilpo_angle, hilpo_mode, hilpo_message_time, scan_time, jump_was_down
+    global interact_was_down, dash_was_down, mouse_down, mouse_pos
     running = True
     while running:
-        dt = min(clock.tick(60) / 1000.0, 0.025)
-        sw, sh, scale, ox, oy, vw, vh = viewport()
+        dt = min(clock.tick(60)/1000, .03)
+        elapsed += dt
         keys = pygame.key.get_pressed()
+        sw, sh = screen.get_size()
         btn = controls()
-        echo_pressed = False
+        action_edge = scan_edge = dash_edge = False
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.VIDEORESIZE:
-                screen = pygame.display.set_mode((max(480, event.w), max(270, event.h)), pygame.RESIZABLE)
+                screen = pygame.display.set_mode((max(480,event.w),max(270,event.h)), pygame.RESIZABLE)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    running = False
-                elif event.key == pygame.K_e:
-                    echo_pressed = True
-                elif event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w) and on_ground:
-                    vy = -510
-                    on_ground = False
+                    if dialogue_open: dialogue_open = False
+                    elif game_state == "play": game_state = "menu"
+                    else: running = False
+                elif event.key == pygame.K_RETURN and game_state == "menu":
+                    reset_game()
+                elif event.key in (pygame.K_e, pygame.K_f):
+                    action_edge = True
+                elif event.key == pygame.K_q:
+                    scan_edge = True
+                elif event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+                    dash_edge = True
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mouse_down = True
-                mouse_pos = event.pos
+                mouse_down, mouse_pos = True, event.pos
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 mouse_down = False
             elif event.type == pygame.MOUSEMOTION:
                 mouse_pos = event.pos
             elif event.type == pygame.FINGERDOWN:
-                active_fingers[event.finger_id] = (event.x * sw, event.y * sh)
+                finger_points[event.finger_id] = (event.x*sw,event.y*sh)
             elif event.type == pygame.FINGERMOTION:
-                active_fingers[event.finger_id] = (event.x * sw, event.y * sh)
+                finger_points[event.finger_id] = (event.x*sw,event.y*sh)
             elif event.type == pygame.FINGERUP:
-                active_fingers.pop(event.finger_id, None)
+                finger_points.pop(event.finger_id,None)
 
-        pointer_positions = list(active_fingers.values())
-        if mouse_down:
-            pointer_positions.append(mouse_pos)
+        points = list(finger_points.values())
+        if mouse_down: points.append(mouse_pos)
         pressed = set()
-        for point in pointer_positions:
-            gx, gy = to_game_coords(point)
+        for point in points:
             for name, rect in btn.items():
-                if rect.collidepoint(gx, gy):
+                if rect.collidepoint(point):
                     pressed.add(name)
 
-        move_left = keys[pygame.K_LEFT] or keys[pygame.K_a] or "left" in pressed
-        move_right = keys[pygame.K_RIGHT] or keys[pygame.K_d] or "right" in pressed
-        jump_down = keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w] or "jump" in pressed
-        if jump_down and not jump_was_down and on_ground:
-            vy = -510
-            on_ground = False
-        jump_was_down = jump_down
-        echo_pressed = echo_pressed or "echo" in pressed
+        if game_state == "menu":
+            if "action" in pressed or (mouse_down and pygame.Rect(350,320,260,62).collidepoint(mouse_pos)):
+                reset_game()
+            canvas = pygame.Surface((W,H))
+            draw_menu(canvas)
+        else:
+            move_left = keys[pygame.K_LEFT] or keys[pygame.K_a] or "left" in pressed
+            move_right = keys[pygame.K_RIGHT] or keys[pygame.K_d] or "right" in pressed
+            jump_down = keys[pygame.K_SPACE] or keys[pygame.K_w] or keys[pygame.K_UP] or "jump" in pressed
+            action_down = keys[pygame.K_e] or keys[pygame.K_f] or "action" in pressed
+            scan_down = keys[pygame.K_q] or "scan" in pressed
+            dash_down = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+            action_edge = action_edge or (action_down and not interact_was_down)
+            scan_edge = scan_edge or (scan_down and not getattr(main,"scan_was_down",False))
+            dash_edge = dash_edge or (dash_down and not dash_was_down)
+            interact_was_down = action_down
+            main.scan_was_down = scan_down
+            dash_was_down = dash_down
 
-        vx = (-230 if move_left else 0) + (230 if move_right else 0)
-        resolve_horizontal(player, vx * dt)
-        vy = min(vy + 1250 * dt, 800)
-        resolve_vertical(player, vy * dt)
+            if action_edge: interact()
+            if scan_edge: scan()
+            if dash_edge and dash_cooldown <= 0 and not dialogue_open:
+                dash_time, dash_cooldown = .16, .85
+                add_particles(player.centerx,player.centery,PURPLE,12,100)
 
-        # Simple respawn if the player falls off the world.
-        if player.top > H + 100:
-            player.topleft = spawn
-            vy = 0
-            camera_x = 0
+            if not dialogue_open:
+                direction = int(move_right)-int(move_left)
+                if direction:
+                    facing = direction
+                if dash_time > 0:
+                    vx = facing*650
+                    dash_time = max(0,dash_time-dt)
+                else:
+                    vx = direction*245
+                resolve_x(player,vx*dt)
+                if jump_down and not jump_was_down and grounded:
+                    vy = -535
+                    grounded = False
+                    add_particles(player.centerx,player.bottom,(119,75,190),7,55)
+                jump_was_down = jump_down
+                vy = min(vy+1420*dt,850)
+                resolve_y(player,vy*dt)
+            else:
+                jump_was_down = jump_down
 
-        near_echo = abs(player.centerx - echo_rect.centerx) < 115 and abs(player.centery - echo_rect.centery) < 100
-        if echo_pressed and near_echo:
-            echo_speak()
+            if player.top > H+120:
+                player.topleft = spawn
+                vy = 0
+                health = max(0,health-1)
+            if health <= 0:
+                reset_game()
 
-        # Collect crystals
-        crystals[:] = [c for c in crystals if not player.colliderect(c)]
-        if len(crystals) == 0 and player.colliderect(portal):
-            won = True
+            # HILPO spring-follow with distance clamp and smooth velocity
+            target_x = player.centerx - facing*62
+            target_y = player.centery - 30 + math.sin(elapsed*3)*10
+            dx,dy = target_x-hilpo_x,target_y-hilpo_y
+            distance = math.hypot(dx,dy)
+            if distance > 260:
+                hilpo_x,hilpo_y = target_x,target_y
+            else:
+                hilpo_x += dx*min(1,dt*4.2)
+                hilpo_y += dy*min(1,dt*4.2)
+            hilpo_angle = math.atan2(dy,dx)
+            if dash_cooldown > 0: dash_cooldown = max(0,dash_cooldown-dt)
+            if invuln > 0: invuln = max(0,invuln-dt)
+            if hilpo_message_time > 0: hilpo_message_time = max(0,hilpo_message_time-dt)
+            if scan_time > 0: scan_time = max(0,scan_time-dt)
 
-        camera_x = max(0, min(world_width-W, player.centerx-W/2))
-        canvas = pygame.Surface((W, H))
-        draw_world(canvas, camera_x)
+            for c in crystals[:]:
+                if player.colliderect(c):
+                    crystals.remove(c)
+                    add_particles(c.centerx,c.centery,GOLD,24,130)
+                    show_message("HILPO: Veil shard secured.")
+            near_echo = abs(player.centerx-echo_box.centerx)<130 and abs(player.centery-echo_box.centery)<120
 
-        collected = 3 - len(crystals)
-        draw_text(canvas, f"CRYSTALS: {collected}/3", 22, 18)
-        draw_text(canvas, "MISSION: Find 3 crystals and reach the portal", 22, 48, LILAC, small)
+            camera_x = clamp(player.centerx-W*.42,0,WORLD_W-W)
+            canvas = pygame.Surface((W,H))
+            draw_background(canvas)
+            draw_platforms(canvas)
+            draw_crystals(canvas)
+            draw_portal(canvas)
+            draw_echo(canvas)
+            draw_particles(canvas)
+            draw_hollow(canvas)
+            draw_hilpo(canvas)
+            draw_hud(canvas)
 
-        # Mini-map and player marker
-        pygame.draw.rect(canvas, (38, 25, 62), (790, 18, 148, 28), border_radius=8)
-        for crystal in crystals:
-            mx = 794 + int(crystal.centerx / world_width * 138)
-            pygame.draw.circle(canvas, GOLD, (mx, 32), 3)
-        marker = 794 + int(player.centerx / world_width * 138)
-        pygame.draw.circle(canvas, WHITE, (marker, 32), 5)
+            if near_echo and not dialogue_open:
+                text(canvas,"E  /  ACTION: SPEAK TO ECHO",(360,420),LILAC,small)
+            if dialogue_open:
+                draw_dialogue(canvas,"ECHO",echo_lines[dialogue_index])
+            elif hilpo_message_time > 0:
+                rounded(canvas,(270,385,420,48),(19,13,35),10,(119,83,160),1)
+                text(canvas,hilpo_message,(286,401),PALE,small)
+            if scan_time > 0:
+                pygame.draw.circle(canvas,(190,148,255),(int(hilpo_x-camera_x),int(hilpo_y)),int(35+(1.2-scan_time)*100),2)
+            if won:
+                rounded(canvas,(235,185,490,150),(18,12,34),18,(190,145,245),2)
+                text(canvas,"THE GATE REMEMBERS",(320,210),GOLD,large)
+                text(canvas,"The Awakening — prototype complete",(335,280),PALE,small)
+                text(canvas,"Press ESC to return to title",(370,310),LILAC,tiny)
 
-        if near_echo:
-            draw_text(canvas, "Press E / ECHO to talk", 360, 395, LILAC, small)
-        if talk:
-            pygame.draw.rect(canvas, (28, 18, 48), (190, 330, 580, 82), border_radius=12)
-            pygame.draw.rect(canvas, LILAC, (190, 330, 580, 82), 2, border_radius=12)
-            draw_text(canvas, "ECHO: " + echo_messages[echo_line], 210, 360, WHITE, small)
-        if won:
-            pygame.draw.rect(canvas, (25, 15, 48), (250, 205, 460, 100), border_radius=16)
-            draw_text(canvas, "PORTAL RESTORED", 370, 225, GOLD)
-            draw_text(canvas, "The first chapter is complete.", 350, 263, WHITE, small)
+            for name,label in (("left","◀"),("right","▶"),("scan","SCAN"),("action","ACT"),("jump","JUMP")):
+                draw_button(canvas,label,btn[name],name in pressed)
+            if dash_cooldown > 0:
+                rounded(canvas,(22,415,110,8),(35,25,50),4)
+                pygame.draw.rect(canvas,PURPLE,(22,415,int(110*(1-dash_cooldown/.85)),8),border_radius=4)
 
-        for name, label in (("left", "◀"), ("right", "▶"), ("echo", "ECHO"), ("jump", "JUMP")):
-            draw_button(canvas, label, btn[name], name in pressed)
-
-        scaled = pygame.transform.smoothscale(canvas, (vw, vh))
-        screen.fill((8, 6, 18))
-        screen.blit(scaled, (ox, oy))
+        # Integer-ish nearest-neighbor presentation preserves pixel edges
+        sw,sh = screen.get_size()
+        scale = min(sw/W,sh/H)
+        vw,vh = int(W*scale),int(H*scale)
+        ox,oy = (sw-vw)//2,(sh-vh)//2
+        scaled = pygame.transform.scale(canvas,(max(1,vw),max(1,vh)))
+        screen.fill(INK)
+        screen.blit(scaled,(ox,oy))
         pygame.display.flip()
 
     pygame.quit()
