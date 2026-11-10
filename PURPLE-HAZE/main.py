@@ -171,7 +171,7 @@ def draw_world(canvas, camera):
     pygame.draw.rect(canvas, (145, 111, 194), (px+21, player.y+9, 7, 7), border_radius=3)
 
 def main():
-    global vx, vy, on_ground, camera_x, talk, won, mouse_down, mouse_pos
+    global screen, vx, vy, on_ground, camera_x, talk, won, mouse_down, mouse_pos
     running = True
     while running:
         dt = min(clock.tick(60) / 1000.0, 0.025)
