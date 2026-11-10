@@ -388,7 +388,7 @@ def main():
                     pressed.add(name)
 
         if game_state == "menu":
-            if "action" in pressed or (mouse_down and pygame.Rect(350,320,260,62).collidepoint(mouse_pos)):
+            if points or "action" in pressed:
                 reset_game()
             canvas = pygame.Surface((W,H))
             draw_menu(canvas)
