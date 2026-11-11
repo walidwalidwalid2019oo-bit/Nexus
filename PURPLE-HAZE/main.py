@@ -59,6 +59,8 @@ platforms = [
 crystal_spawns = [(420, 395), (1120, 295), (1900, 310), (2370, 365)]
 echo_box = pygame.Rect(1500, 340, 40, 65)
 portal = pygame.Rect(2820, 335, 85, 105)
+village_center = pygame.Rect(760, 320, 170, 115)
+cave_entrance = pygame.Rect(2240, 345, 110, 105)
 
 player = pygame.Rect(110, 350, 36, 58)
 spawn = (110, 350)
@@ -74,6 +76,9 @@ coins = 0
 owned_weapons = ["Shadow Blade"]
 selected_weapon = "Shadow Blade"
 shop_open = False
+inventory_open = False
+inventory = {"Veil Shards": 0, "Moon Moss": 0, "Ancient Relics": 0}
+found_places = set()
 attack_time = 0.0
 attack_cooldown = 0.0
 game_state = "menu"
@@ -261,6 +266,40 @@ def draw_echo(surf):
     pygame.draw.line(surf, (179,143,220), (x-13,y+15),(x+13,y+15), 2)
     text(surf, "E C H O", (x-27,y-45), LILAC, tiny)
 
+def draw_village(surf):
+    x, y = world_to_screen(village_center.centerx, village_center.centery)
+    glow(surf, (x+12,y+5), 48, (166,103,218), 25)
+    pygame.draw.rect(surf, (42,30,58), (x-82,y-42,70,68), border_radius=5)
+    pygame.draw.polygon(surf, (91,55,117), [(x-91,y-42),(x-47,y-78),(x-3,y-42)])
+    pygame.draw.rect(surf, (54,37,72), (x+5,y-25,72,52), border_radius=4)
+    pygame.draw.polygon(surf, (105,66,135), [(x-2,y-25),(x+41,y-58),(x+84,y-25)])
+    for wx in (x-63,x-32,x+25,x+55):
+        pygame.draw.rect(surf, (224,170,116), (wx,y-12,10,15), border_radius=2)
+    pygame.draw.rect(surf, (22,16,34), (x+25,y+2,18,25))
+    text(surf, "VESPER OUTPOST", (x-66,y-91), LILAC, tiny)
+
+def draw_cave(surf):
+    x, y = world_to_screen(cave_entrance.centerx, cave_entrance.centery)
+    glow(surf, (x,y+8), 50, (125,65,192), 38)
+    pygame.draw.polygon(surf, (48,34,65), [(x-58,y+48),(x-48,y-8),(x-25,y-46),(x,y-60),(x+31,y-40),(x+55,y+48)])
+    pygame.draw.ellipse(surf, (8,6,17), (x-36,y-28,72,78))
+    pygame.draw.arc(surf, (151,102,193), (x-49,y-52,98,110), 0, math.pi, 4)
+    for ox,oy in [(-22,15),(20,-4),(4,32)]:
+        glow(surf,(x+ox,y+oy),10,(165,94,235),50)
+        pygame.draw.circle(surf,LILAC,(x+ox,y+oy),3)
+    text(surf,"THE HOLLOWING CAVES",(x-78,y-75),LILAC,tiny)
+
+def draw_inventory(surf):
+    rounded(surf,(220,105,520,330),(14,10,28),18,(164,112,230),3)
+    text(surf,"HOLLOW'S PACK",(260,125),LILAC,large)
+    text(surf,"I / INVENTORY to close",(265,187),(173,151,195),small)
+    rows=[("Veil Shards",inventory["Veil Shards"]),("Moon Moss",inventory["Moon Moss"]),("Ancient Relics",inventory["Ancient Relics"]),("Veil Coins",coins)]
+    for i,(name,count) in enumerate(rows):
+        y=235+i*42
+        text(surf,name,(275,y),PALE,small)
+        text(surf,str(count),(650,y),GOLD,small)
+    text(surf,"Collected items and discoveries",(275,402),LILAC,tiny)
+
 def draw_portal(surf):
     x, y = world_to_screen(portal.centerx, portal.centery)
     glow(surf, (x,y), 55, (130,69,204), 30)
@@ -359,6 +398,8 @@ def interact():
     global dialogue_open, dialogue_index, won
     near_echo = abs(player.centerx-echo_box.centerx)<125 and abs(player.centery-echo_box.centery)<120
     near_portal = abs(player.centerx-portal.centerx)<100 and abs(player.centery-portal.centery)<110
+    near_village = abs(player.centerx-village_center.centerx)<155 and abs(player.centery-village_center.centery)<140
+    near_cave = abs(player.centerx-cave_entrance.centerx)<120 and abs(player.centery-cave_entrance.centery)<130
     if dialogue_open:
         dialogue_index += 1
         if dialogue_index >= len(echo_lines):
@@ -367,6 +408,21 @@ def interact():
     if near_echo:
         dialogue_open = True
         dialogue_index = 0
+    elif near_village:
+        if "outpost" not in found_places:
+            found_places.add("outpost")
+            inventory["Ancient Relics"] += 1
+            show_message("HILPO: Outpost discovered. +1 Ancient Relic.")
+        else:
+            show_message("HILPO: The outpost is quiet. Search the caves for more.")
+    elif near_cave:
+        if "caves" not in found_places:
+            found_places.add("caves")
+            inventory["Moon Moss"] += 1
+            coins += 15
+            show_message("HILPO: Cave entrance mapped. +1 Moon Moss, +15 Coins.")
+        else:
+            show_message("HILPO: Cave route mapped. Deeper passages await.")
     elif near_portal:
         if not crystals:
             won = True
@@ -415,7 +471,7 @@ def main():
     global invuln, health, elapsed, game_state, dialogue_open, hilpo_x, hilpo_y
     global hilpo_angle, hilpo_mode, hilpo_message_time, scan_time, jump_was_down
     global interact_was_down, dash_was_down, mouse_down, mouse_pos
-    global shop_open, attack_time, attack_cooldown, coins
+    global shop_open, inventory_open, attack_time, attack_cooldown, coins
     running = True
     while running:
         dt = min(clock.tick(60)/1000, .03)
@@ -443,6 +499,9 @@ def main():
                     scan_edge = True
                 elif event.key == pygame.K_b:
                     shop_open = not shop_open
+                elif event.key == pygame.K_i:
+                    inventory_open = not inventory_open
+                    shop_open = False
                 elif event.key == pygame.K_j:
                     perform_attack()
                 elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3) and shop_open:
@@ -497,13 +556,13 @@ def main():
             main.scan_was_down = scan_down
             dash_was_down = dash_down
 
-            if action_edge and not shop_open: interact()
+            if action_edge and not shop_open and not inventory_open: interact()
             if scan_edge and not shop_open: scan()
             if dash_edge and dash_cooldown <= 0 and not dialogue_open and not shop_open:
                 dash_time, dash_cooldown = .16, .85
                 add_particles(player.centerx,player.centery,PURPLE,12,100)
 
-            if not dialogue_open and not shop_open:
+            if not dialogue_open and not shop_open and not inventory_open:
                 direction = int(move_right)-int(move_left)
                 if direction:
                     facing = direction
@@ -552,6 +611,7 @@ def main():
                 if player.colliderect(c):
                     crystals.remove(c)
                     coins += 25
+                    inventory["Veil Shards"] += 1
                     add_particles(c.centerx,c.centery,GOLD,24,130)
                     show_message("HILPO: Shard secured. +25 Veil Coins.")
             near_echo = abs(player.centerx-echo_box.centerx)<130 and abs(player.centery-echo_box.centery)<120
@@ -560,6 +620,8 @@ def main():
             canvas = pygame.Surface((W,H))
             draw_background(canvas)
             draw_platforms(canvas)
+            draw_village(canvas)
+            draw_cave(canvas)
             draw_crystals(canvas)
             draw_portal(canvas)
             draw_echo(canvas)
@@ -569,7 +631,11 @@ def main():
             draw_hud(canvas)
 
             if near_echo and not dialogue_open:
-                text(canvas,"E  /  ACTION: SPEAK TO ECHO",(360,420),LILAC,small)
+                text(canvas,"E / ACTION: SPEAK TO ECHO",(360,420),LILAC,small)
+            if abs(player.centerx-village_center.centerx)<155 and abs(player.centery-village_center.centery)<140:
+                text(canvas,"E / ACTION: EXPLORE OUTPOST",(350,420),LILAC,small)
+            if abs(player.centerx-cave_entrance.centerx)<120 and abs(player.centery-cave_entrance.centery)<130:
+                text(canvas,"E / ACTION: EXPLORE CAVES",(360,420),LILAC,small)
             if dialogue_open:
                 draw_dialogue(canvas,"ECHO",echo_lines[dialogue_index])
             elif hilpo_message_time > 0:
@@ -585,8 +651,10 @@ def main():
 
             for name,label in (("left","◀"),("right","▶"),("scan","SCAN"),("action","ACT"),("jump","JUMP"),("attack","ATTACK")):
                 draw_button(canvas,label,btn[name],name in pressed)
-            draw_button(canvas,"SHOP  [B]",btn["shop"],shop_open)
+            draw_button(canvas,"SHOP [B]",btn["shop"],shop_open)
             if shop_open: draw_shop(canvas)
+            if inventory_open: draw_inventory(canvas)
+            text(canvas,"I: INVENTORY",(24,395),LILAC,tiny)
             if dash_cooldown > 0:
                 rounded(canvas,(22,415,110,8),(35,25,50),4)
                 pygame.draw.rect(canvas,PURPLE,(22,415,int(110*(1-dash_cooldown/.85)),8),border_radius=4)
