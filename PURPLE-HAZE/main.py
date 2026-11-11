@@ -70,6 +70,12 @@ dash_cooldown = 0.0
 dash_time = 0.0
 invuln = 0.0
 health = 3
+coins = 0
+owned_weapons = ["Shadow Blade"]
+selected_weapon = "Shadow Blade"
+shop_open = False
+attack_time = 0.0
+attack_cooldown = 0.0
 game_state = "menu"
 dialogue_open = False
 dialogue_index = 0
@@ -109,6 +115,8 @@ def controls():
         "jump": pygame.Rect(850, 438, 88, 76),
         "action": pygame.Rect(850, 350, 88, 72),
         "scan": pygame.Rect(750, 438, 82, 76),
+        "attack": pygame.Rect(650, 350, 88, 72),
+        "shop": pygame.Rect(790, 70, 130, 38),
     }
 
 def draw_button(surf, label, rect, active=False):
@@ -203,18 +211,33 @@ def draw_crystals(surf):
 
 def draw_hollow(surf):
     x, y = world_to_screen(player.centerx, player.centery)
-    bob = math.sin(elapsed*4)*3
+    moving = abs(vx) > 20
+    bob = math.sin(elapsed*(10 if moving else 4))* (5 if moving else 3)
+    lean = int(clamp(vx/55, -4, 4))
     glow(surf, (x,y), 34, (139,68,220), 60)
     # smoke trail
     for i in range(5):
         sx = x - facing*(10+i*9)
         sy = int(y+12+i*4+math.sin(elapsed*5+i)*5)
         pygame.draw.circle(surf, (65,35,97), (sx,sy), max(2,9-i))
-    body = [(x, int(y-30+bob)), (x+15,int(y-17+bob)), (x+13,int(y+18+bob)),
-            (x,int(y+29+bob)), (x-13,int(y+18+bob)), (x-15,int(y-17+bob))]
+    body = [(x+lean, int(y-30+bob)), (x+15+lean,int(y-17+bob)), (x+13+lean,int(y+18+bob)),
+            (x+lean,int(y+29+bob)), (x-13+lean,int(y+18+bob)), (x-15+lean,int(y-17+bob))]
     pygame.draw.polygon(surf, (13,9,23), body)
     pygame.draw.polygon(surf, (116,67,166), body, 2)
-    pygame.draw.line(surf, (192,139,255), (x+facing*5,y-10),(x+facing*5,y+11), 2)
+    pygame.draw.line(surf, (192,139,255), (x+lean+facing*5,y-10),(x+lean+facing*5,y+11), 2)
+    if attack_time > 0:
+        tip = (x + facing*58, y-12)
+        base = (x + facing*13, y+8)
+        glow(surf, tip, 23, (166,91,255), 90)
+        if selected_weapon == "Veil Scythe":
+            pygame.draw.arc(surf, (210,170,255), (min(base[0],tip[0])-12,y-58,72,88), 3.8, 5.9, 7)
+        elif selected_weapon == "Void Gauntlet":
+            pygame.draw.circle(surf, (197,132,255), (x+facing*28,y+7), 17, 5)
+            pygame.draw.circle(surf, (92,43,155), (x+facing*28,y+7), 9)
+        else:
+            pygame.draw.line(surf, (224,194,255), base, tip, 8)
+            pygame.draw.line(surf, (130,66,220), base, tip, 3)
+        pygame.draw.circle(surf, (236,216,255), tip, 5)
 
 def draw_hilpo(surf):
     x, y = int(hilpo_x-camera_x), int(hilpo_y)
@@ -260,13 +283,52 @@ def draw_hud(surf):
     for i in range(4):
         col = GOLD if i < 4-len(crystals) else (67,52,83)
         pygame.draw.circle(surf, col, (148+i*25,56), 7)
-    # health
+    # health and Veil Coins
     for i in range(3):
         pygame.draw.circle(surf, (191,111,220) if i < health else (55,42,68), (270+i*18,55), 6)
+    rounded(surf, (340,16,132,43), (20,14,37), 10, (126,91,53), 1)
+    text(surf, "✦ "+str(coins), (354,27), GOLD, small)
     # HILPO state
     rounded(surf, (780,16,160,43), (20,14,37), 10, (91,62,128), 1)
     pygame.draw.circle(surf, PURPLE, (798,37), 5)
     text(surf, "HILPO  "+hilpo_mode, (811,27), PALE, tiny)
+
+def draw_shop(surf):
+    rounded(surf, (190,75,580,390), (15,10,30), 18, (164,112,230), 3)
+    text(surf, "VEIL MARKET", (225,96), LILAC, large)
+    text(surf, "Coins: "+str(coins)+"   |   B / SHOP to close", (230,153), GOLD, small)
+    items = [("Shadow Blade",0,"Balanced starter weapon"),("Veil Scythe",75,"Wide, sweeping shadow arcs"),("Void Gauntlet",120,"Heavy close-range impact")]
+    for i,(name,cost,desc) in enumerate(items):
+        y = 205+i*75
+        selected = selected_weapon == name
+        rounded(surf, (220,y,520,60), (47,29,70) if selected else (27,19,45), 10,
+                (196,145,255) if selected else (83,61,112), 2)
+        text(surf, str(i+1)+". "+name, (238,y+8), PALE, small)
+        text(surf, desc, (238,y+33), (173,151,195), tiny)
+        status = "EQUIPPED" if selected else ("OWNED" if name in owned_weapons else str(cost)+" COINS")
+        text(surf, status, (620,y+20), GOLD if name not in owned_weapons else LILAC, tiny)
+    text(surf, "Tap an item or press 1 / 2 / 3 to buy or equip", (260,433), PALE, tiny)
+
+def buy_or_equip(index):
+    global coins, selected_weapon
+    items = [("Shadow Blade",0),("Veil Scythe",75),("Void Gauntlet",120)]
+    if not 0 <= index < len(items): return
+    name,cost = items[index]
+    if name not in owned_weapons:
+        if coins < cost:
+            show_message("HILPO: Not enough Veil Coins.")
+            return
+        coins -= cost
+        owned_weapons.append(name)
+        show_message("HILPO: "+name+" formed from shadow.")
+    selected_weapon = name
+
+def perform_attack():
+    global attack_time, attack_cooldown
+    if attack_cooldown > 0 or shop_open or dialogue_open: return
+    attack_time = 0.28 if selected_weapon == "Shadow Blade" else 0.4
+    attack_cooldown = 0.38 if selected_weapon == "Shadow Blade" else 0.58
+    add_particles(player.centerx+facing*35, player.centery, LILAC, 10, 90)
 
 def draw_dialogue(surf, speaker, line):
     rounded(surf, (135,365,690,105), (17,12,32), 14, (159,119,210), 2)
@@ -321,7 +383,7 @@ def scan():
     add_particles(hilpo_x, hilpo_y, LILAC, 18, 75)
 
 def reset_game():
-    global player, vx, vy, camera_x, crystals, health, won, dialogue_open
+    global player, vx, vy, camera_x, crystals, health, won, dialogue_open, coins, shop_open, attack_time, attack_cooldown
     global hilpo_x, hilpo_y, game_state, particles, dialogue_index
     global grounded, facing, dash_time, dash_cooldown, invuln
     global jump_was_down, interact_was_down, dash_was_down, scan_time
@@ -334,6 +396,9 @@ def reset_game():
     jump_was_down = interact_was_down = dash_was_down = False
     crystals = [pygame.Rect(x,y,22,34) for x,y in crystal_spawns]
     health = 3
+    coins = 0
+    shop_open = False
+    attack_time = attack_cooldown = 0.0
     won = False
     dialogue_open = False
     dialogue_index = 0
@@ -350,6 +415,7 @@ def main():
     global invuln, health, elapsed, game_state, dialogue_open, hilpo_x, hilpo_y
     global hilpo_angle, hilpo_mode, hilpo_message_time, scan_time, jump_was_down
     global interact_was_down, dash_was_down, mouse_down, mouse_pos
+    global shop_open, attack_time, attack_cooldown
     running = True
     while running:
         dt = min(clock.tick(60)/1000, .03)
@@ -375,6 +441,12 @@ def main():
                     action_edge = True
                 elif event.key == pygame.K_q:
                     scan_edge = True
+                elif event.key == pygame.K_b:
+                    shop_open = not shop_open
+                elif event.key == pygame.K_j:
+                    perform_attack()
+                elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3) and shop_open:
+                    buy_or_equip(event.key-pygame.K_1)
                 elif event.key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                     dash_edge = True
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -413,6 +485,10 @@ def main():
             jump_down = keys[pygame.K_SPACE] or keys[pygame.K_w] or keys[pygame.K_UP] or "jump" in pressed
             action_down = keys[pygame.K_e] or keys[pygame.K_f] or "action" in pressed
             scan_down = keys[pygame.K_q] or "scan" in pressed
+            attack_down = keys[pygame.K_j] or "attack" in pressed
+            if "shop" in pressed: shop_open = True
+            if attack_down and not getattr(main,"attack_was_down",False): perform_attack()
+            main.attack_was_down = attack_down
             dash_down = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
             action_edge = action_edge or (action_down and not interact_was_down)
             scan_edge = scan_edge or (scan_down and not getattr(main,"scan_was_down",False))
@@ -421,13 +497,13 @@ def main():
             main.scan_was_down = scan_down
             dash_was_down = dash_down
 
-            if action_edge: interact()
-            if scan_edge: scan()
-            if dash_edge and dash_cooldown <= 0 and not dialogue_open:
+            if action_edge and not shop_open: interact()
+            if scan_edge and not shop_open: scan()
+            if dash_edge and dash_cooldown <= 0 and not dialogue_open and not shop_open:
                 dash_time, dash_cooldown = .16, .85
                 add_particles(player.centerx,player.centery,PURPLE,12,100)
 
-            if not dialogue_open:
+            if not dialogue_open and not shop_open:
                 direction = int(move_right)-int(move_left)
                 if direction:
                     facing = direction
@@ -466,6 +542,8 @@ def main():
                 hilpo_y += dy*min(1,dt*4.2)
             hilpo_angle = math.atan2(dy,dx)
             if dash_cooldown > 0: dash_cooldown = max(0,dash_cooldown-dt)
+            if attack_cooldown > 0: attack_cooldown = max(0,attack_cooldown-dt)
+            if attack_time > 0: attack_time = max(0,attack_time-dt)
             if invuln > 0: invuln = max(0,invuln-dt)
             if hilpo_message_time > 0: hilpo_message_time = max(0,hilpo_message_time-dt)
             if scan_time > 0: scan_time = max(0,scan_time-dt)
@@ -473,8 +551,9 @@ def main():
             for c in crystals[:]:
                 if player.colliderect(c):
                     crystals.remove(c)
+                    coins += 25
                     add_particles(c.centerx,c.centery,GOLD,24,130)
-                    show_message("HILPO: Veil shard secured.")
+                    show_message("HILPO: Shard secured. +25 Veil Coins.")
             near_echo = abs(player.centerx-echo_box.centerx)<130 and abs(player.centery-echo_box.centery)<120
 
             camera_x = clamp(player.centerx-W*.42,0,WORLD_W-W)
@@ -504,8 +583,10 @@ def main():
                 text(canvas,"The Awakening — prototype complete",(335,280),PALE,small)
                 text(canvas,"Press ESC to return to title",(370,310),LILAC,tiny)
 
-            for name,label in (("left","◀"),("right","▶"),("scan","SCAN"),("action","ACT"),("jump","JUMP")):
+            for name,label in (("left","◀"),("right","▶"),("scan","SCAN"),("action","ACT"),("jump","JUMP"),("attack","ATTACK")):
                 draw_button(canvas,label,btn[name],name in pressed)
+            draw_button(canvas,"SHOP  [B]",btn["shop"],shop_open)
+            if shop_open: draw_shop(canvas)
             if dash_cooldown > 0:
                 rounded(canvas,(22,415,110,8),(35,25,50),4)
                 pygame.draw.rect(canvas,PURPLE,(22,415,int(110*(1-dash_cooldown/.85)),8),border_radius=4)
