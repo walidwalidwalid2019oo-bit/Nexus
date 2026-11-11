@@ -307,7 +307,7 @@ def draw_shop(surf):
         text(surf, desc, (238,y+33), (173,151,195), tiny)
         status = "EQUIPPED" if selected else ("OWNED" if name in owned_weapons else str(cost)+" COINS")
         text(surf, status, (620,y+20), GOLD if name not in owned_weapons else LILAC, tiny)
-    text(surf, "Tap an item or press 1 / 2 / 3 to buy or equip", (260,433), PALE, tiny)
+    text(surf, "Press 1 / 2 / 3 to buy or equip", (260,433), PALE, tiny)
 
 def buy_or_equip(index):
     global coins, selected_weapon
@@ -415,7 +415,7 @@ def main():
     global invuln, health, elapsed, game_state, dialogue_open, hilpo_x, hilpo_y
     global hilpo_angle, hilpo_mode, hilpo_message_time, scan_time, jump_was_down
     global interact_was_down, dash_was_down, mouse_down, mouse_pos
-    global shop_open, attack_time, attack_cooldown
+    global shop_open, attack_time, attack_cooldown, coins
     running = True
     while running:
         dt = min(clock.tick(60)/1000, .03)
