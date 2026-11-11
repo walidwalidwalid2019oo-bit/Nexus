@@ -395,7 +395,7 @@ def show_message(msg):
     hilpo_message_time = 2.5
 
 def interact():
-    global dialogue_open, dialogue_index, won
+    global dialogue_open, dialogue_index, won, coins
     near_echo = abs(player.centerx-echo_box.centerx)<125 and abs(player.centery-echo_box.centery)<120
     near_portal = abs(player.centerx-portal.centerx)<100 and abs(player.centery-portal.centery)<110
     near_village = abs(player.centerx-village_center.centerx)<155 and abs(player.centery-village_center.centery)<140
@@ -453,7 +453,10 @@ def reset_game():
     crystals = [pygame.Rect(x,y,22,34) for x,y in crystal_spawns]
     health = 3
     coins = 0
+    inventory = {"Veil Shards": 0, "Moon Moss": 0, "Ancient Relics": 0}
+    found_places = set()
     shop_open = False
+    inventory_open = False
     attack_time = attack_cooldown = 0.0
     won = False
     dialogue_open = False
