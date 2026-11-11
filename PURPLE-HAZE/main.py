@@ -323,14 +323,25 @@ def scan():
 def reset_game():
     global player, vx, vy, camera_x, crystals, health, won, dialogue_open
     global hilpo_x, hilpo_y, game_state, particles, dialogue_index
+    global grounded, facing, dash_time, dash_cooldown, invuln
+    global jump_was_down, interact_was_down, dash_was_down, scan_time
+    global hilpo_angle, hilpo_mode, hilpo_message, hilpo_message_time
     player.topleft = spawn
     vx = vy = camera_x = 0
+    grounded = False
+    facing = 1
+    dash_time = dash_cooldown = invuln = scan_time = 0.0
+    jump_was_down = interact_was_down = dash_was_down = False
     crystals = [pygame.Rect(x,y,22,34) for x,y in crystal_spawns]
     health = 3
     won = False
     dialogue_open = False
     dialogue_index = 0
     hilpo_x, hilpo_y = 155.0, 330.0
+    hilpo_angle = 0.0
+    hilpo_mode = "FOLLOW"
+    hilpo_message = ""
+    hilpo_message_time = 0.0
     particles = []
     game_state = "play"
 
