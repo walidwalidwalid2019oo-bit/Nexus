@@ -373,14 +373,18 @@ def main():
             elif event.type == pygame.MOUSEMOTION:
                 mouse_pos = event.pos
             elif event.type == pygame.FINGERDOWN:
-                finger_points[event.finger_id] = (event.x*sw,event.y*sh)
+                # Keep normalized touch coordinates so resizing cannot desync controls.
+                finger_points[event.finger_id] = (event.x,event.y)
             elif event.type == pygame.FINGERMOTION:
-                finger_points[event.finger_id] = (event.x*sw,event.y*sh)
+                finger_points[event.finger_id] = (event.x,event.y)
             elif event.type == pygame.FINGERUP:
                 finger_points.pop(event.finger_id,None)
 
-        points = list(finger_points.values())
-        if mouse_down: points.append(mouse_pos)
+        # Convert window-space pointer positions to the fixed 960x540 game canvas.
+        sw, sh = screen.get_size()
+        points = [(x*W,y*H) for x,y in finger_points.values()]
+        if mouse_down:
+            points.append((mouse_pos[0]*W/sw,mouse_pos[1]*H/sh))
         pressed = set()
         for point in points:
             for name, rect in btn.items():
