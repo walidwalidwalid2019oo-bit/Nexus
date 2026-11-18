@@ -206,6 +206,17 @@ fun NexusApp() {
                     "Home" -> HomePage(mode, onChoose = {
                         mode=it; prefs.edit().putString("selected_ai",it).apply(); page="Chat"
                     }, onSecret = { showUnlock=true }, onNavigate = { page=it })
+                    "JARVIS" -> JarvisPage(
+                        modelConfigured = apiKey.isNotBlank() && !models["NEXUS AI"].isNullOrBlank(),
+                        onAsk = { prompt, done ->
+                            Thread {
+                                val result = askProvider(endpoint, models["NEXUS AI"] ?: "", apiKey, "NEXUS AI",
+                                    listOf(ChatMessage("user", prompt)))
+                                Handler(Looper.getMainLooper()).post { done(result.first, result.second) }
+                            }.start()
+                        },
+                        onBack = { page = "Home" }
+                    )
                     "NEXUS 3.0" -> NexusThreePage(onBack = { page = "Home" }, prefs = prefs)
                     "PROJECT MAP" -> ProjectMapPage(onBack = { page="Home" })
                     "DARK SIDE" -> DarkSidePage(
@@ -355,6 +366,28 @@ private fun HomePage(
                         Text("ACTIVE  /  $active", color = Muted, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), fontSize = 9.sp)
                     }
                 }
+            }
+        }
+
+        Card(
+            onClick = { onNavigate("JARVIS") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1025)),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, Color(0xFF8052A5))
+        ) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+                Box(Modifier.size(48.dp).background(Color(0xFF3B2052), RoundedCornerShape(15.dp)),
+                    contentAlignment = Alignment.Center) {
+                    Text("N", color = Color(0xFFE9D5FA), fontSize = 24.sp, fontWeight = FontWeight.Light)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("NEXUS JARVIS", color = MainText, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    Text("Voice-first personal AI assistant", color = Muted, fontSize = 10.sp)
+                    Text("OPEN ASSISTANT  ›", color = Color(0xFFD7B8F2), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+                Text("◉", color = Color(0xFFD7B8F2), fontSize = 22.sp)
             }
         }
 
