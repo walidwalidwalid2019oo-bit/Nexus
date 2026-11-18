@@ -184,19 +184,21 @@ fun NexusApp() {
     MaterialTheme(colorScheme = darkColorScheme(background = Night, surface = Panel, primary = Purple,
         secondary = DeepPurple, onBackground = MainText, onSurface = MainText, onPrimary = Color.White)) {
         Scaffold(containerColor = Night, bottomBar = {
-            NavigationBar(containerColor = Panel, contentColor = MainText) {
-                listOf("Home", "Chat", "Lost Mind", "Memory", "Settings").forEach { tab ->
-                    NavigationBarItem(selected = page == tab, onClick = { page = tab },
-                        icon = { Text(when (tab) { "Home" -> "⌂"; "Chat" -> "◉"; "Lost Mind" -> "✧"; "Memory" -> "◈"; else -> "⚙" }) },
-                        label = { Text(tab, fontSize = 9.sp, maxLines = 1) },
-                        colors = NavigationBarItemDefaults.colors(selectedIconColor = Color.White,
-                            selectedTextColor = Color.White, indicatorColor = DeepPurple,
-                            unselectedIconColor = Muted, unselectedTextColor = Muted))
+            if (page != "JARVIS") {
+                NavigationBar(containerColor = Panel, contentColor = MainText) {
+                    listOf("Home", "Chat", "Lost Mind", "Memory", "Settings").forEach { tab ->
+                        NavigationBarItem(selected = page == tab, onClick = { page = tab },
+                            icon = { Text(when (tab) { "Home" -> "⌂"; "Chat" -> "◉"; "Lost Mind" -> "✧"; "Memory" -> "◈"; else -> "⚙" }) },
+                            label = { Text(tab, fontSize = 9.sp, maxLines = 1) },
+                            colors = NavigationBarItemDefaults.colors(selectedIconColor = Color.White,
+                                selectedTextColor = Color.White, indicatorColor = DeepPurple,
+                                unselectedIconColor = Muted, unselectedTextColor = Muted))
+                    }
                 }
             }
         }) { padding ->
             Column(Modifier.fillMaxSize().background(Night).padding(padding).padding(horizontal = 17.dp)) {
-                if (page != "Chat" && page != "DARK SIDE") {
+                if (page != "Chat" && page != "DARK SIDE" && page != "JARVIS") {
                     Spacer(Modifier.height(14.dp))
                     Text("N E X U S", color = MainText, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
                     Text("YOUR DIGITAL SPACE  /  " + mode, color = Muted, fontSize = 9.sp, letterSpacing = 1.sp)
