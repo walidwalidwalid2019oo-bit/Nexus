@@ -36,6 +36,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
+import io.github.sceneview.Scene
+import io.github.sceneview.math.Position
+import io.github.sceneview.math.Rotation
+import io.github.sceneview.math.Scale
+import io.github.sceneview.node.SphereNode
+import io.github.sceneview.rememberCameraNode
+import io.github.sceneview.rememberEngine
+import io.github.sceneview.rememberMainLightNode
+import io.github.sceneview.rememberMaterialLoader
+import io.github.sceneview.rememberNode
+import kotlin.math.cos
+import kotlin.math.sin
 
 private data class JarvisMessage(val fromUser: Boolean, val text: String)
 
@@ -331,146 +343,89 @@ private fun FloatingPickelOrb(
     orbScale: Float,
     active: Boolean
 ) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        // Wide atmospheric glow: the outer halo breathes independently from the glass core.
-        Box(
-            Modifier.size(184.dp).graphicsLayer {
-                translationY = floatY * 0.35f
-                scaleX = if (active) 1.28f else 1.18f
-                scaleY = if (active) 1.28f else 1.18f
-                alpha = if (active) 0.46f else 0.29f
-            }.background(
-                Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xCCB66BFF),
-                        Color(0x665D20A5),
-                        Color(0x222B1048),
-                        Color.Transparent
-                    )
-                ),
-                CircleShape
-            )
-        )
+    // Filament renders real 3D geometry with depth, perspective and scene lighting.
+    val engine = rememberEngine()
+    val materialLoader = rememberMaterialLoader(engine)
 
-        // Fine outer orbit, with a soft luminous trail.
-        androidx.compose.foundation.Canvas(
-            Modifier.size(width = 184.dp, height = 112.dp).graphicsLayer {
-                rotationZ = ringRotation
-                translationY = -floatY * 0.22f
-            }
-        ) {
-            drawOval(
-                brush = Brush.sweepGradient(
-                    listOf(
-                        Color.Transparent,
-                        Color(0x668B45D8),
-                        Color(0xFFE1BFFF),
-                        Color(0x668B45D8),
-                        Color.Transparent
-                    )
-                ),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.8.dp.toPx())
-            )
-            val orbitRadiusX = size.width * 0.46f
-            val orbitRadiusY = size.height * 0.5f
-            for (i in 0 until 8) {
-                val angle = Math.toRadians((i * 45.0) + ringRotation.toDouble())
-                val x = center.x + kotlin.math.cos(angle).toFloat() * orbitRadiusX
-                val y = center.y + kotlin.math.sin(angle).toFloat() * orbitRadiusY
-                drawCircle(
-                    color = if (i % 2 == 0) Color(0xFFDDBBFF) else Color(0x997D36C9),
-                    radius = if (i % 2 == 0) 2.1.dp.toPx() else 1.25.dp.toPx(),
-                    center = androidx.compose.ui.geometry.Offset(x, y)
-                )
-            }
-        }
-
-        // Counter-rotating inner orbit adds depth without making the motion frantic.
-        androidx.compose.foundation.Canvas(
-            Modifier.size(width = 158.dp, height = 86.dp).graphicsLayer {
-                rotationZ = counterRotation
-                translationY = floatY * 0.18f
-            }
-        ) {
-            drawOval(
-                color = Color(0x887F3BC7),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.15.dp.toPx())
-            )
-            drawCircle(
-                color = Color(0xCCF0D8FF),
-                radius = 2.dp.toPx(),
-                center = androidx.compose.ui.geometry.Offset(size.width * 0.08f, center.y)
-            )
-        }
-
-        // Glass body: layered radial gradients create a luminous, dimensional core.
-        Box(
-            Modifier.size(116.dp).graphicsLayer {
-                translationY = floatY
-                scaleX = orbScale
-                scaleY = orbScale
-            }.background(
-                Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFFFE9FF),
-                        Color(0xFFD9A5FF),
-                        Color(0xFF9A4DE4),
-                        Color(0xFF54217F),
-                        Color(0xFF170B25)
-                    ),
-                    center = androidx.compose.ui.geometry.Offset(38f, 30f),
-                    radius = 190f
-                ),
-                CircleShape
-            ),
-            contentAlignment = Alignment.Center
-        ) {
-            // Inner light bloom.
-            Box(
-                Modifier.size(84.dp).background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xBFFFFFFF),
-                            Color(0x88DDB5FF),
-                            Color(0x447D35C2),
-                            Color.Transparent
-                        )
-                    ),
-                    CircleShape
-                )
-            )
-            // Fine glass contours.
-            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                drawCircle(
-                    color = Color(0xBFE8C9FF),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.35.dp.toPx())
-                )
-                drawCircle(
-                    color = Color(0x668A42D0),
-                    radius = size.minDimension * 0.39f,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
-                )
-                drawArc(
-                    color = Color(0x99FFFFFF),
-                    startAngle = 205f,
-                    sweepAngle = 72f,
-                    useCenter = false,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                        width = 2.dp.toPx(),
-                        cap = androidx.compose.ui.graphics.StrokeCap.Round
-                    )
-                )
-            }
-        }
-
-        // Specular highlights make the sphere read as polished glass.
-        Box(
-            Modifier.offset(x = (-27).dp, y = (-31).dp).size(18.dp)
-                .background(Color(0xDDF8EAFF), CircleShape)
-        )
-        Box(
-            Modifier.offset(x = 23.dp, y = 27.dp).size(6.dp)
-                .background(Color(0x99E4C4FF), CircleShape)
+    val coreMaterial = remember(materialLoader) {
+        materialLoader.createColorInstance(
+            Color(0xFF9D55E8), metallic = 0.42f, roughness = 0.16f, reflectance = 0.8f
         )
     }
+    val innerMaterial = remember(materialLoader) {
+        materialLoader.createColorInstance(
+            Color(0xFFDBB7FF), metallic = 0.12f, roughness = 0.24f, reflectance = 0.7f
+        )
+    }
+    val shellMaterial = remember(materialLoader) {
+        materialLoader.createColorInstance(
+            Color(0x448D45C9), metallic = 0.08f, roughness = 0.08f, reflectance = 0.9f
+        )
+    }
+    val particleMaterial = remember(materialLoader) {
+        materialLoader.createColorInstance(
+            Color(0xFFE8D2FF), metallic = 0.18f, roughness = 0.2f, reflectance = 0.8f
+        )
+    }
+
+    val cameraNode = rememberCameraNode(engine) {
+        position = Position(z = 3.15f)
+    }
+    val core = rememberNode(engine) {
+        SphereNode(engine, radius = 0.62f, stacks = 48, slices = 48, materialInstance = coreMaterial)
+    }
+    val inner = rememberNode(engine) {
+        SphereNode(engine, radius = 0.48f, stacks = 40, slices = 40, materialInstance = innerMaterial)
+    }
+    val shell = rememberNode(engine) {
+        SphereNode(engine, radius = 0.69f, stacks = 48, slices = 48, materialInstance = shellMaterial)
+    }
+    val particleA = rememberNode(engine) {
+        SphereNode(engine, radius = 0.045f, stacks = 16, slices = 16, materialInstance = particleMaterial)
+    }
+    val particleB = rememberNode(engine) {
+        SphereNode(engine, radius = 0.032f, stacks = 16, slices = 16, materialInstance = particleMaterial)
+    }
+    val particleC = rememberNode(engine) {
+        SphereNode(engine, radius = 0.038f, stacks = 16, slices = 16, materialInstance = particleMaterial)
+    }
+
+    Scene(
+        modifier = modifier,
+        engine = engine,
+        cameraNode = cameraNode,
+        mainLightNode = rememberMainLightNode(engine),
+        isOpaque = false,
+        childNodes = listOf(core, inner, shell, particleA, particleB, particleC),
+        onFrame = { frameTimeNanos ->
+            val time = frameTimeNanos / 1_000_000_000f
+            val speed = if (active) 1.35f else 1f
+            val orbit = time * 0.72f * speed
+            val bob = floatY * 0.0045f
+
+            core.position = Position(y = bob)
+            inner.position = Position(y = bob)
+            shell.position = Position(y = bob)
+            core.scale = Scale(orbScale, orbScale, orbScale)
+            inner.scale = Scale(orbScale, orbScale, orbScale)
+            core.rotation = Rotation(x = counterRotation * 0.10f, y = ringRotation * 0.08f)
+            shell.rotation = Rotation(x = counterRotation * 0.22f, y = -ringRotation * 0.12f)
+
+            particleA.position = Position(
+                x = cos(orbit) * 0.92f,
+                y = sin(orbit * 1.12f) * 0.30f + bob,
+                z = sin(orbit) * 0.48f
+            )
+            particleB.position = Position(
+                x = cos(orbit + 2.15f) * 0.88f,
+                y = sin(orbit + 2.15f) * 0.42f + bob,
+                z = sin(orbit + 2.15f) * 0.44f
+            )
+            particleC.position = Position(
+                x = cos(orbit + 4.2f) * 0.96f,
+                y = sin(orbit + 4.2f) * 0.25f + bob,
+                z = sin(orbit + 4.2f) * 0.5f
+            )
+        }
+    )
 }
