@@ -2,9 +2,7 @@ package com.nexus.app
 
 import android.app.Activity
 import android.content.Intent
-import android.os.Bundle
 import android.speech.RecognizerIntent
-import android.speech.tts.TextToSpeech
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -60,16 +58,17 @@ fun JarvisPage(
     var thinking by remember { mutableStateOf(false) }
     var voiceEnabled by remember { mutableStateOf(true) }
     var speechReady by remember { mutableStateOf(false) }
-    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var voiceOutput by remember { mutableStateOf<PickelVoiceOutput?>(null) }
 
     DisposableEffect(context) {
-        val engine = TextToSpeech(context) { result ->
-            speechReady = result == TextToSpeech.SUCCESS
+        val output = AndroidPickelVoiceOutput(context) { ready ->
+            speechReady = ready
+            if (!ready) status = "TEXT-TO-SPEECH UNAVAILABLE"
         }
-        tts = engine
+        voiceOutput = output
         onDispose {
-            try { engine.stop(); engine.shutdown() } catch (_: Exception) { }
-            tts = null
+            output.shutdown()
+            voiceOutput = null
             speechReady = false
         }
     }
@@ -77,10 +76,7 @@ fun JarvisPage(
     fun speak(text: String) {
         if (voiceEnabled && speechReady) {
             try {
-                tts?.setLanguage(Locale.US)
-                tts?.setPitch(0.80f)
-                tts?.setSpeechRate(0.90f)
-                tts?.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "nexus_jarvis_reply")
+                voiceOutput?.speak(text)
             } catch (_: Exception) {
                 status = "TEXT-TO-SPEECH UNAVAILABLE"
             }
@@ -206,7 +202,7 @@ fun JarvisPage(
             Spacer(Modifier.weight(1f))
             TextButton(onClick = {
                 voiceEnabled = !voiceEnabled
-                if (!voiceEnabled) tts?.stop()
+                if (!voiceEnabled) voiceOutput?.stop()
             }) {
                 Text(if (voiceEnabled) "VOICE ON" else "VOICE OFF", color = Purple, fontSize = 9.sp)
             }
