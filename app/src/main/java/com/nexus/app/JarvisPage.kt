@@ -28,6 +28,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -145,14 +147,25 @@ fun JarvisPage(
         }
     }
 
-    val pulse = rememberInfiniteTransition(label = "jarvisPulse")
-    val orbScale by pulse.animateFloat(
-        initialValue = 0.97f,
-        targetValue = if (listening || thinking) 1.075f else 1.015f,
-        animationSpec = infiniteRepeatable(
-            tween(1250, easing = FastOutSlowInEasing),
-            RepeatMode.Reverse
-        ),
+    val motion = rememberInfiniteTransition(label = "pickelMotion")
+    val floatY by motion.animateFloat(
+        initialValue = -7f, targetValue = 7f,
+        animationSpec = infiniteRepeatable(tween(3600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "floatY"
+    )
+    val ringRotation by motion.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(18000, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "ringRotation"
+    )
+    val counterRotation by motion.animateFloat(
+        initialValue = 360f, targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(24000, easing = androidx.compose.animation.core.LinearEasing)),
+        label = "counterRotation"
+    )
+    val orbScale by motion.animateFloat(
+        initialValue = 0.985f, targetValue = if (listening || thinking) 1.045f else 1.018f,
+        animationSpec = infiniteRepeatable(tween(if (listening || thinking) 1050 else 2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "orbScale"
     )
 
@@ -173,16 +186,14 @@ fun JarvisPage(
         Text("P I C K E L", color = MainText, fontSize = 23.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
         Text("PERSONAL AI", color = Purple, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
 
-        Box(Modifier.padding(vertical = 2.dp).size(142.dp), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(138.dp).scale(orbScale).background(Color(0x223F1B59), CircleShape))
-            Box(Modifier.size(112.dp).background(Color(0xFF241333), CircleShape), contentAlignment = Alignment.Center) {
-                Box(Modifier.size(84.dp).background(Color(0xFF3B2052), CircleShape), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(58.dp).background(Color(0xFF9A63C7), CircleShape), contentAlignment = Alignment.Center) {
-                        Text("N", color = Color.White, fontSize = 29.sp, fontWeight = FontWeight.Light)
-                    }
-                }
-            }
-        }
+        FloatingPickelOrb(
+            modifier = Modifier.padding(vertical = 2.dp).size(190.dp),
+            floatY = floatY,
+            ringRotation = ringRotation,
+            counterRotation = counterRotation,
+            orbScale = orbScale,
+            active = listening || thinking
+        )
         Text(
             status,
             color = if (listening || thinking) Color(0xFFD7B8F2) else Muted,
@@ -221,7 +232,7 @@ fun JarvisPage(
                     ) {
                         Column(Modifier.padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                if (message.fromUser) "MR. VOIDEX" else "NEXUS",
+                                if (message.fromUser) "MR. VOIDEX" else "PICKEL",
                                 color = if (message.fromUser) Color(0xFFE4CCF6) else Purple,
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
@@ -310,6 +321,100 @@ fun JarvisPage(
         Text(
             "Voice input uses Android's speech recognizer. Spoken replies use the installed text-to-speech engine. Phone actions are not enabled in this build.",
             color = Muted, fontSize = 9.sp, lineHeight = 13.sp, textAlign = TextAlign.Center
+        )
+    }
+}
+
+
+@Composable
+private fun FloatingPickelOrb(
+    modifier: Modifier = Modifier,
+    floatY: Float,
+    ringRotation: Float,
+    counterRotation: Float,
+    orbScale: Float,
+    active: Boolean
+) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        // Soft ambient glow behind the orb.
+        Box(
+            Modifier.size(154.dp).graphicsLayer {
+                translationY = floatY * 0.55f
+                scaleX = orbScale * 1.18f
+                scaleY = orbScale * 1.18f
+                alpha = if (active) 0.42f else 0.27f
+            }.background(
+                Brush.radialGradient(
+                    colors = listOf(Color(0xAA9B4DFF), Color(0x443F168A), Color.Transparent)
+                ),
+                CircleShape
+            )
+        )
+        // Two independent, slow orbital paths create depth without abrupt movement.
+        Box(
+            Modifier.size(width = 178.dp, height = 74.dp)
+                .graphicsLayer { rotationZ = ringRotation; translationY = floatY * 0.35f }
+                .background(Color.Transparent, CircleShape)
+                .then(Modifier)
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Transparent, CircleShape))
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                drawOval(
+                    color = Color(0xB78E42FF),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.6.dp.toPx())
+                )
+            }
+        }
+        androidx.compose.foundation.Canvas(
+            Modifier.size(width = 164.dp, height = 94.dp).graphicsLayer {
+                rotationZ = counterRotation
+                translationY = -floatY * 0.25f
+            }
+        ) {
+            drawOval(
+                color = Color(0x777D35E8),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2.dp.toPx())
+            )
+        }
+        // Glass-like energy sphere.
+        Box(
+            Modifier.size(112.dp).graphicsLayer {
+                translationY = floatY
+                scaleX = orbScale
+                scaleY = orbScale
+            }.background(
+                Brush.radialGradient(
+                    colors = listOf(Color(0xFFDAA8FF), Color(0xFF8739D5), Color(0xFF28103F), Color(0xFF090512)),
+                    radius = 190f
+                ),
+                CircleShape
+            ),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                Modifier.size(76.dp).background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xAAE8C6FF), Color(0x667C31D4), Color.Transparent)
+                    ),
+                    CircleShape
+                )
+            )
+            androidx.compose.foundation.Canvas(Modifier.size(112.dp)) {
+                drawCircle(
+                    color = Color(0x99D9A7FF),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.4.dp.toPx())
+                )
+                drawCircle(
+                    color = Color(0x558B42E8),
+                    radius = size.minDimension * 0.39f,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                )
+            }
+        }
+        // Small highlight gives the sphere a polished, dimensional surface.
+        Box(
+            Modifier.offset(x = (-25).dp, y = (-28).dp).size(19.dp)
+                .background(Color(0x99F3DDFF), CircleShape)
         )
     }
 }
