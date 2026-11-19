@@ -91,10 +91,10 @@ fun JarvisPage(
         input = ""
         conversation.add(JarvisMessage(true, question))
         thinking = true
-        status = "NEXUS IS THINKING"
+        status = "PICKEL IS THINKING"
 
         if (!modelConfigured) {
-            val message = "Your AI connection is not configured yet. Please open Settings and add your provider connection and NEXUS AI model."
+            val message = "My AI connection is not configured yet. Please open Settings and add your provider connection and AI model."
             conversation.add(JarvisMessage(false, message))
             status = "AI CONNECTION REQUIRED"
             thinking = false
@@ -103,10 +103,10 @@ fun JarvisPage(
         }
 
         val history = conversation.takeLast(14).joinToString("\n") { message ->
-            (if (message.fromUser) "Mr. VOIDEX: " else "NEXUS: ") + message.text
+            (if (message.fromUser) "Mr. VOIDEX: " else "PICKEL: ") + message.text
         }
         val prompt = """
-            You are NEXUS JARVIS, a highly capable, composed and courteous personal AI assistant.
+            You are PICKEL, a highly capable, composed and courteous personal AI assistant created for the VOIDEX ecosystem.
             Address the user as Mr. VOIDEX. Your manner is polished, calm, intelligent and respectful.
             Answer general questions clearly. If information may be outdated or you are uncertain, say so.
             Never claim to have opened apps, sent messages, placed calls, changed settings, or performed phone actions.
@@ -170,8 +170,8 @@ fun JarvisPage(
             Spacer(Modifier.weight(1f))
             Text("PERSONAL ASSISTANT", color = Muted, fontSize = 9.sp, letterSpacing = 1.2.sp)
         }
-        Text("N E X U S", color = MainText, fontSize = 23.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
-        Text("JARVIS MODE", color = Purple, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+        Text("P I C K E L", color = MainText, fontSize = 23.sp, fontWeight = FontWeight.Bold, letterSpacing = 5.sp)
+        Text("PERSONAL AI", color = Purple, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
 
         Box(Modifier.padding(vertical = 2.dp).size(142.dp), contentAlignment = Alignment.Center) {
             Box(Modifier.size(138.dp).scale(orbScale).background(Color(0x223F1B59), CircleShape))
@@ -236,7 +236,7 @@ fun JarvisPage(
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         CircularProgressIndicator(Modifier.size(14.dp), color = Purple, strokeWidth = 2.dp)
-                        Text("NEXUS is preparing a response...", color = Muted, fontSize = 10.sp)
+                        Text("PICKEL is preparing a response...", color = Muted, fontSize = 10.sp)
                     }
                 }
             }
@@ -244,7 +244,7 @@ fun JarvisPage(
 
         if (!modelConfigured) {
             Text(
-                "Configure the NEXUS AI model and provider key in Settings to activate live answers.",
+                "Configure the AI model and provider connection in Settings to activate live answers.",
                 color = Color(0xFFE2BD8C), fontSize = 9.sp, textAlign = TextAlign.Center
             )
         }
@@ -279,7 +279,7 @@ fun JarvisPage(
                             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to NEXUS")
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak to PICKEL")
                             }
                             try {
                                 listening = true
