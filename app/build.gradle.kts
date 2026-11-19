@@ -37,5 +37,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    // Filament-powered 3D rendering; compatible with this project toolchain.
+    implementation("io.github.sceneview:sceneview:2.3.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
