@@ -332,85 +332,145 @@ private fun FloatingPickelOrb(
     active: Boolean
 ) {
     Box(modifier, contentAlignment = Alignment.Center) {
-        // Soft ambient glow behind the orb.
+        // Wide atmospheric glow: the outer halo breathes independently from the glass core.
         Box(
-            Modifier.size(154.dp).graphicsLayer {
-                translationY = floatY * 0.55f
-                scaleX = orbScale * 1.18f
-                scaleY = orbScale * 1.18f
-                alpha = if (active) 0.42f else 0.27f
+            Modifier.size(184.dp).graphicsLayer {
+                translationY = floatY * 0.35f
+                scaleX = if (active) 1.28f else 1.18f
+                scaleY = if (active) 1.28f else 1.18f
+                alpha = if (active) 0.46f else 0.29f
             }.background(
                 Brush.radialGradient(
-                    colors = listOf(Color(0xAA9B4DFF), Color(0x443F168A), Color.Transparent)
+                    colors = listOf(
+                        Color(0xCCB66BFF),
+                        Color(0x665D20A5),
+                        Color(0x222B1048),
+                        Color.Transparent
+                    )
                 ),
                 CircleShape
             )
         )
-        // Two independent, slow orbital paths create depth without abrupt movement.
-        Box(
-            Modifier.size(width = 178.dp, height = 74.dp)
-                .graphicsLayer { rotationZ = ringRotation; translationY = floatY * 0.35f }
-                .background(Color.Transparent, CircleShape)
-                .then(Modifier)
-        ) {
-            Box(Modifier.fillMaxSize().background(Color.Transparent, CircleShape))
-            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                drawOval(
-                    color = Color(0xB78E42FF),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.6.dp.toPx())
-                )
-            }
-        }
+
+        // Fine outer orbit, with a soft luminous trail.
         androidx.compose.foundation.Canvas(
-            Modifier.size(width = 164.dp, height = 94.dp).graphicsLayer {
-                rotationZ = counterRotation
-                translationY = -floatY * 0.25f
+            Modifier.size(width = 184.dp, height = 112.dp).graphicsLayer {
+                rotationZ = ringRotation
+                translationY = -floatY * 0.22f
             }
         ) {
             drawOval(
-                color = Color(0x777D35E8),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2.dp.toPx())
+                brush = Brush.sweepGradient(
+                    listOf(
+                        Color.Transparent,
+                        Color(0x668B45D8),
+                        Color(0xFFE1BFFF),
+                        Color(0x668B45D8),
+                        Color.Transparent
+                    )
+                ),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.8.dp.toPx())
+            )
+            val orbitRadiusX = size.width * 0.46f
+            val orbitRadiusY = size.height * 0.5f
+            for (i in 0 until 8) {
+                val angle = Math.toRadians((i * 45.0) + ringRotation.toDouble())
+                val x = center.x + kotlin.math.cos(angle).toFloat() * orbitRadiusX
+                val y = center.y + kotlin.math.sin(angle).toFloat() * orbitRadiusY
+                drawCircle(
+                    color = if (i % 2 == 0) Color(0xFFDDBBFF) else Color(0x997D36C9),
+                    radius = if (i % 2 == 0) 2.1.dp.toPx() else 1.25.dp.toPx(),
+                    center = androidx.compose.ui.geometry.Offset(x, y)
+                )
+            }
+        }
+
+        // Counter-rotating inner orbit adds depth without making the motion frantic.
+        androidx.compose.foundation.Canvas(
+            Modifier.size(width = 158.dp, height = 86.dp).graphicsLayer {
+                rotationZ = counterRotation
+                translationY = floatY * 0.18f
+            }
+        ) {
+            drawOval(
+                color = Color(0x887F3BC7),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.15.dp.toPx())
+            )
+            drawCircle(
+                color = Color(0xCCF0D8FF),
+                radius = 2.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.08f, center.y)
             )
         }
-        // Glass-like energy sphere.
+
+        // Glass body: layered radial gradients create a luminous, dimensional core.
         Box(
-            Modifier.size(112.dp).graphicsLayer {
+            Modifier.size(116.dp).graphicsLayer {
                 translationY = floatY
                 scaleX = orbScale
                 scaleY = orbScale
             }.background(
                 Brush.radialGradient(
-                    colors = listOf(Color(0xFFDAA8FF), Color(0xFF8739D5), Color(0xFF28103F), Color(0xFF090512)),
+                    colors = listOf(
+                        Color(0xFFFFE9FF),
+                        Color(0xFFD9A5FF),
+                        Color(0xFF9A4DE4),
+                        Color(0xFF54217F),
+                        Color(0xFF170B25)
+                    ),
+                    center = androidx.compose.ui.geometry.Offset(38f, 30f),
                     radius = 190f
                 ),
                 CircleShape
             ),
             contentAlignment = Alignment.Center
         ) {
+            // Inner light bloom.
             Box(
-                Modifier.size(76.dp).background(
+                Modifier.size(84.dp).background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xAAE8C6FF), Color(0x667C31D4), Color.Transparent)
+                        colors = listOf(
+                            Color(0xBFFFFFFF),
+                            Color(0x88DDB5FF),
+                            Color(0x447D35C2),
+                            Color.Transparent
+                        )
                     ),
                     CircleShape
                 )
             )
-            androidx.compose.foundation.Canvas(Modifier.size(112.dp)) {
+            // Fine glass contours.
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
                 drawCircle(
-                    color = Color(0x99D9A7FF),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.4.dp.toPx())
+                    color = Color(0xBFE8C9FF),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.35.dp.toPx())
                 )
                 drawCircle(
-                    color = Color(0x558B42E8),
+                    color = Color(0x668A42D0),
                     radius = size.minDimension * 0.39f,
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
                 )
+                drawArc(
+                    color = Color(0x99FFFFFF),
+                    startAngle = 205f,
+                    sweepAngle = 72f,
+                    useCenter = false,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 2.dp.toPx(),
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                )
             }
         }
-        // Small highlight gives the sphere a polished, dimensional surface.
+
+        // Specular highlights make the sphere read as polished glass.
         Box(
-            Modifier.offset(x = (-25).dp, y = (-28).dp).size(19.dp)
-                .background(Color(0x99F3DDFF), CircleShape)
+            Modifier.offset(x = (-27).dp, y = (-31).dp).size(18.dp)
+                .background(Color(0xDDF8EAFF), CircleShape)
+        )
+        Box(
+            Modifier.offset(x = 23.dp, y = 27.dp).size(6.dp)
+                .background(Color(0x99E4C4FF), CircleShape)
         )
     }
 }
