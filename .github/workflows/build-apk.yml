@@ -2,7 +2,7 @@ name: Build NEXUS APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/jarvis-mode" ]
   workflow_dispatch:
 
 permissions:
