@@ -65,13 +65,19 @@ fun NexusThreePage(onBack: () -> Unit, prefs: android.content.SharedPreferences)
             val isText = chosenMime.startsWith("text/") || extension in setOf("txt", "md", "json", "csv", "xml", "kt", "py", "log")
             if (isText) {
                 try {
-                    val content = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    if (content.length > 1_000_000) {
-                        filePreview = content.take(1_000_000)
-                        fileStatus = "Preview limited to the first 1 MB."
+                    val preview = context.contentResolver.openInputStream(uri)
+                        ?.bufferedReader(Charsets.UTF_8)
+                        ?.use { readTextPreview(it) }
+                    if (preview == null) {
+                        filePreview = ""
+                        fileStatus = "Could not open this file."
                     } else {
-                        filePreview = content
-                        fileStatus = "File opened successfully."
+                        filePreview = preview.text
+                        fileStatus = if (preview.truncated) {
+                            "Preview limited to the first 1 MB."
+                        } else {
+                            "File opened successfully."
+                        }
                     }
                 } catch (_: Exception) {
                     filePreview = ""
