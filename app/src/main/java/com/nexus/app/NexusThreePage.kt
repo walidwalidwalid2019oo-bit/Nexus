@@ -74,7 +74,7 @@ fun NexusThreePage(onBack: () -> Unit, prefs: android.content.SharedPreferences)
                     } else {
                         filePreview = preview.text
                         fileStatus = if (preview.truncated) {
-                            "Preview limited to the first 1 MB."
+                            "Preview limited to the first 1,000,000 characters."
                         } else {
                             "File opened successfully."
                         }
